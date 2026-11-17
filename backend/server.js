@@ -13,7 +13,7 @@ const pool = mysql.createPool({
 });
 
 // 设置跨域访问
-app.all('*', function (req, res, next) {
+app.use(function (req, res, next) {
     res.header('Access-Control-Allow-Origin', '*');
     res.header('Access-Control-Allow-Headers', 'Content-Type');
     res.header('Access-Control-Allow-Methods', '*');
@@ -512,7 +512,8 @@ function toFiniteNumber(value) {
 
 function serve() {
     // 启动服务器
-    app.listen(port, function () {
+    app.listen(port, function (err) {
+        if (err) throw err;
         console.log('Server is running on port ' + port);
     });
 }
