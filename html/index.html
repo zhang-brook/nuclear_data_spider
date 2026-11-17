@@ -43,7 +43,8 @@
         }
 
         .feature {
-            display: block;
+            display: flex;
+            flex-direction: column;
             padding: 20px;
             color: inherit;
             text-decoration: none;
@@ -68,8 +69,8 @@
         }
 
         .feature span {
-            display: inline-block;
-            margin-top: 14px;
+            margin-top: auto;
+            padding-top: 14px;
             color: var(--primary);
             font-size: 13px;
         }
@@ -100,17 +101,17 @@
             <a class="card feature" href="./query.html">
                 <h3>数据列表</h3>
                 <p>按类型、位置、时间、数值与关键词组合筛选，支持分页浏览和 CSV 导出。</p>
-                <span>查看</span>
+                <span>进入</span>
             </a>
             <a class="card feature" href="./chart.html">
                 <h3>数据曲线</h3>
                 <p>选择具体测点，查看最近 N 条或指定日期范围内的辐射剂量率变化曲线。</p>
-                <span>查看</span>
+                <span>进入</span>
             </a>
             <a class="card feature" href="./basic.html">
                 <h3>基础查询</h3>
                 <p>选择具体测点与日期，查看当天及前 3 天的监测记录。</p>
-                <span>查看</span>
+                <span>进入</span>
             </a>
         </div>
     </main>
