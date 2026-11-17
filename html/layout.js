@@ -149,7 +149,7 @@
         const brand = el('a', 'brand')
         brand.href = './index.html'
         brand.appendChild(el('h1', '', '辐射环境监测数据'))
-        brand.appendChild(el('p', '', '国家核安全局公开数据'))
+        brand.appendChild(el('p', '', '国家核安全局公开数据（非官方）'))
 
         const nav = el('nav', 'nav')
         const current = (location.pathname.split('/').pop() || 'index.html').toLowerCase()
