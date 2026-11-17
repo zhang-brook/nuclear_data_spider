@@ -3,7 +3,7 @@ const request = require('request');
 const fs = require('fs');
 const xpath = require('xpath');
 const dom = require('xmldom').DOMParser;
-const mysql = require('mysql');
+const mysql = require('mysql2');
 
 // 要爬取的网页地址
 // https://data.rmtc.org.cn/gis/PubIndexM.html?type=0
