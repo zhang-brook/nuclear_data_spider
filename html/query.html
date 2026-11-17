@@ -111,6 +111,7 @@
                             <th class="sortable" data-sort="value">数值<span class="sort-mark"></span></th>
                             <th>层级</th>
                             <th class="sortable" data-sort="time">更新时间<span class="sort-mark"></span></th>
+                            <th>操作</th>
                         </tr>
                     </thead>
                     <tbody id="tbody"></tbody>
@@ -372,7 +373,7 @@
                 el.tbody.replaceChildren()
                 const tr = document.createElement('tr')
                 const td = document.createElement('td')
-                td.colSpan = 7
+                td.colSpan = 8
                 td.className = 'state-cell' + (kind ? ` ${kind}` : '')
                 td.textContent = text
                 tr.appendChild(td)
@@ -436,6 +437,22 @@
                 return td
             }
 
+            function copyCell(row) {
+                const td = document.createElement('td')
+                td.className = 'nowrap'
+                const button = document.createElement('button')
+                button.type = 'button'
+                button.className = 'link-btn'
+                button.title = '复制该行数据'
+                button.textContent = '复制'
+                button.addEventListener('click', async () => {
+                    const copied = await siteUtils.copyText(siteUtils.rowCopyText(row, row.date || '—'))
+                    toast(copied ? '已复制到剪贴板' : '复制失败', copied ? undefined : 'error')
+                })
+                td.appendChild(button)
+                return td
+            }
+
             function renderRows(rows) {
                 el.tbody.replaceChildren()
                 const fragment = document.createDocumentFragment()
@@ -448,6 +465,7 @@
                     tr.appendChild(valueCell(row.value))
                     tr.appendChild(levelCell(row))
                     tr.appendChild(textCell(row.time || '—', 'nowrap muted'))
+                    tr.appendChild(copyCell(row))
                     fragment.appendChild(tr)
                 }
                 el.tbody.appendChild(fragment)

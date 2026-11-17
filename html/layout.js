@@ -25,6 +25,50 @@
         return node
     }
 
+    async function copyText(text) {
+        try {
+            await navigator.clipboard.writeText(text)
+            return true
+        } catch (error) {
+            const area = document.createElement('textarea')
+            area.value = text
+            area.setAttribute('readonly', '')
+            area.style.position = 'fixed'
+            area.style.top = '-1000px'
+            document.body.appendChild(area)
+            area.select()
+            let copied = false
+            try {
+                copied = document.execCommand('copy')
+            } catch (fallbackError) {
+                copied = false
+            }
+            area.remove()
+            return copied
+        }
+    }
+
+    function typeText(type) {
+        if (type === '0') return '环境质量监测点'
+        if (type === '1') return '核电厂监测点'
+        return type ?? ''
+    }
+
+    function rowCopyText(row, dateText) {
+        const date = dateText || row.date || ''
+        const rawDate = row.date && row.date !== date ? ` (${row.date})` : ''
+        return [
+            `名称：${row.name || ''}`,
+            `位置：${row.location || ''}`,
+            `值：${row.value || ''}`,
+            `日期：${date}${rawDate}`,
+            `类型：${typeText(row.type)}`,
+            `数据更新日期：${row.time || '暂无'}`,
+        ].join('\n')
+    }
+
+    window.siteUtils = { copyText, rowCopyText }
+
     function buildNav() {
         const host = document.getElementById('site-nav')
         if (!host) return
