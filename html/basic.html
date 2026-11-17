@@ -36,6 +36,28 @@
             font-variant-numeric: tabular-nums;
         }
 
+        .multi-field {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .multi-field input {
+            min-width: 0;
+        }
+
+        .multi-field .link-btn {
+            flex: 0 0 auto;
+            font-size: 12px;
+            white-space: nowrap;
+        }
+
+        .calendar-actions {
+            display: flex;
+            gap: 10px;
+            font-size: 12px;
+        }
+
         .calendar-legend {
             display: flex;
             flex-wrap: wrap;
@@ -179,10 +201,14 @@
                         <option value="latest">最近 N 条</option>
                     </select>
                 </label>
-                <label class="field" id="date-field">日期
+                <div class="field" id="date-field">
+                    <label for="date">日期</label>
                     <input type="date" id="date" name="date" required min="2023-08-25">
-                    <input type="text" id="date-multi" readonly hidden aria-label="已选日期">
-                </label>
+                    <div class="multi-field" id="date-multi-wrap" hidden>
+                        <input type="text" id="date-multi" readonly aria-label="已选日期">
+                        <button type="button" id="date-multi-clear" class="link-btn">清除选择</button>
+                    </div>
+                </div>
                 <label class="field" id="limit-field" hidden>最近条数
                     <select id="limit" name="limit">
                         <option value="10">10 条</option>
@@ -195,11 +221,16 @@
                     </select>
                 </label>
             </div>
-            <div class="calendar-block" id="calendar-card" hidden>
+            <div class="calendar-block" id="calendar-card">
                 <div class="calendar-head">
                     <span class="calendar-title">近 30 天数据</span>
                     <span class="calendar-meta" id="calendar-meta"></span>
                     <span class="calendar-hint">可多选，再次点击取消</span>
+                    <div class="calendar-actions">
+                        <button type="button" id="calendar-select-all" class="link-btn">全选</button>
+                        <button type="button" id="calendar-invert" class="link-btn">反选</button>
+                        <button type="button" id="calendar-clear" class="link-btn">清除</button>
+                    </div>
                     <div class="calendar-legend" aria-hidden="true">
                         <span><i class="legend-dot has"></i>有数据</span>
                         <span><i class="legend-dot none"></i>无数据</span>
@@ -264,14 +295,18 @@
                 limitField: $('limit-field'),
                 limit: $('limit'),
                 date: $('date'),
+                dateMultiWrap: $('date-multi-wrap'),
                 dateMulti: $('date-multi'),
+                dateMultiClear: $('date-multi-clear'),
                 resetBtn: $('reset-btn'),
                 submitBtn: $('submit-btn'),
                 hint: $('query-hint'),
                 meta: $('result-meta'),
-                calendarCard: $('calendar-card'),
                 calendarMeta: $('calendar-meta'),
                 calendarGrid: $('calendar-grid'),
+                calendarSelectAll: $('calendar-select-all'),
+                calendarInvert: $('calendar-invert'),
+                calendarClear: $('calendar-clear'),
                 tbody: $('tbody'),
                 toast: $('toast'),
             }
@@ -480,7 +515,7 @@
                 el.dateField.hidden = latest
                 el.limitField.hidden = !latest
                 el.date.hidden = multi
-                el.dateMulti.hidden = !multi
+                el.dateMultiWrap.hidden = !multi
                 el.date.required = !latest && !multi
                 if (multi) {
                     el.dateMulti.value = `已选 ${selectedDates.size} 天`
@@ -497,11 +532,10 @@
                 markSelectedDates()
             }
 
-            function hideCalendar() {
-                calendarSeq++
-                el.calendarCard.hidden = true
-                el.calendarGrid.replaceChildren()
-                el.calendarMeta.textContent = ''
+            function calendarWindow() {
+                const end = new Date()
+                const start = new Date(end.getFullYear(), end.getMonth(), end.getDate() - 29)
+                return { start, end, startText: dateString(start), endText: dateString(end) }
             }
 
             function showCalendarState(text) {
@@ -510,6 +544,13 @@
                 state.className = 'calendar-state'
                 state.textContent = text
                 el.calendarGrid.appendChild(state)
+            }
+
+            function renderEmptyCalendar() {
+                calendarSeq++
+                const { start, end, startText, endText } = calendarWindow()
+                el.calendarMeta.textContent = `${startText} ~ ${endText}`
+                renderCalendar(new Set(), start, end, startText)
             }
 
             function markSelectedDates() {
@@ -521,6 +562,49 @@
                 }
             }
 
+            function syncDateValue() {
+                el.date.value = selectedDates.size === 1 ? [...selectedDates][0] : ''
+            }
+
+            function calendarDates() {
+                return [...el.calendarGrid.querySelectorAll('.calendar-day')].map((cell) => cell.dataset.date)
+            }
+
+            function applyCalendarSelection(dates) {
+                el.mode.value = 'date'
+                selectedDates = new Set(dates)
+                syncDateValue()
+                updateModeFields()
+                runQuery()
+            }
+
+            function selectAllCalendarDates() {
+                const dates = calendarDates()
+                if (dates.length) applyCalendarSelection(dates)
+            }
+
+            function invertCalendarDates() {
+                const dates = calendarDates()
+                if (!dates.length) return
+                applyCalendarSelection(dates.filter((date) => !selectedDates.has(date)))
+            }
+
+            function clearCalendarDates() {
+                if (el.mode.value === 'latest') el.mode.value = 'date'
+                selectedDates = new Set()
+                syncDateValue()
+                updateModeFields()
+                requestSeq++
+                setLoading(false)
+                if (!el.name.value || !el.location.value) {
+                    el.meta.textContent = '请选择名称和位置'
+                    showMessage('请选择名称和位置', 'empty')
+                    return
+                }
+                el.meta.textContent = '请选择日期'
+                showMessage('请选择日期', 'empty')
+            }
+
             function selectCalendarDate(date) {
                 if (el.mode.value === 'latest') {
                     el.mode.value = 'date'
@@ -530,7 +614,7 @@
                 } else {
                     selectedDates.add(date)
                 }
-                el.date.value = selectedDates.size === 1 ? [...selectedDates][0] : ''
+                syncDateValue()
                 updateModeFields()
                 runQuery()
             }
@@ -575,12 +659,8 @@
 
             async function loadCalendar(name, location) {
                 const seq = ++calendarSeq
-                const end = new Date()
-                const start = new Date(end.getFullYear(), end.getMonth(), end.getDate() - 29)
-                const startText = dateString(start)
-                const endText = dateString(end)
+                const { start, end, startText, endText } = calendarWindow()
 
-                el.calendarCard.hidden = false
                 el.calendarMeta.textContent = `${startText} ~ ${endText}`
                 showCalendarState('加载中…')
 
@@ -606,7 +686,7 @@
 
             function refreshCalendar() {
                 if (!el.name.value || !el.location.value) {
-                    hideCalendar()
+                    renderEmptyCalendar()
                     return
                 }
                 loadCalendar(el.name.value, el.location.value)
@@ -619,7 +699,7 @@
                 setDefaultDate()
                 updateModeFields()
                 syncSelects('type')
-                hideCalendar()
+                refreshCalendar()
                 el.meta.textContent = '选择监测点后查询'
                 showMessage('选择名称和位置后查询', 'empty')
             }
@@ -733,6 +813,11 @@
                 runQuery()
             })
 
+            el.calendarSelectAll.addEventListener('click', selectAllCalendarDates)
+            el.calendarInvert.addEventListener('click', invertCalendarDates)
+            el.calendarClear.addEventListener('click', clearCalendarDates)
+            el.dateMultiClear.addEventListener('click', clearCalendarDates)
+
             el.resetBtn.addEventListener('click', resetFilters)
 
             el.form.addEventListener('submit', (event) => {
@@ -745,6 +830,7 @@
                 updateModeFields()
                 await loadOptionsTree()
                 syncSelects('type')
+                refreshCalendar()
                 showMessage('选择名称和位置后查询', 'empty')
             }
 
