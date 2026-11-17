@@ -734,11 +734,22 @@
                 runQuery({ resetPage: true, push: true })
             }
 
-            el.type.addEventListener('change', () => syncSelects('type'))
+            el.type.addEventListener('change', () => {
+                syncSelects('type')
+                runQuery({ resetPage: true, push: true })
+            })
 
-            el.name.addEventListener('change', () => syncSelects('name'))
+            el.name.addEventListener('change', () => {
+                syncSelects('name')
+                runQuery({ resetPage: true, push: true })
+            })
 
-            el.location.addEventListener('change', () => syncSelects('location'))
+            el.location.addEventListener('change', () => {
+                syncSelects('location')
+                runQuery({ resetPage: true, push: true })
+            })
+
+            el.level.addEventListener('change', () => runQuery({ resetPage: true, push: true }))
 
             el.form.addEventListener('submit', (event) => {
                 event.preventDefault()
