@@ -44,6 +44,7 @@
             <div class="filter-foot">
                 <p class="meta">数据自 2023-08-25 起收录 · 展示所选日期及前 3 天的记录</p>
                 <div class="actions">
+                    <button type="button" id="reset-btn" class="btn ghost">重置</button>
                     <button type="submit" id="submit-btn" class="btn primary">查询</button>
                 </div>
             </div>
@@ -93,6 +94,7 @@
                 name: $('name'),
                 location: $('location'),
                 date: $('date'),
+                resetBtn: $('reset-btn'),
                 submitBtn: $('submit-btn'),
                 meta: $('result-meta'),
                 tbody: $('tbody'),
@@ -294,6 +296,16 @@
                 el.submitBtn.textContent = busy ? '查询中…' : '查询'
             }
 
+            function resetFilters() {
+                requestSeq++
+                setLoading(false)
+                el.form.reset()
+                setDefaultDate()
+                syncSelects('type')
+                el.meta.textContent = '选择监测点后查询'
+                showMessage('选择名称和位置后查询', 'empty')
+            }
+
             async function runQuery() {
                 if (!el.name.value || !el.location.value) {
                     el.meta.textContent = '请选择名称和位置'
@@ -350,6 +362,8 @@
             })
 
             el.date.addEventListener('change', runQuery)
+
+            el.resetBtn.addEventListener('click', resetFilters)
 
             el.form.addEventListener('submit', (event) => {
                 event.preventDefault()

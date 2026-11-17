@@ -142,8 +142,9 @@
                 </label>
             </div>
             <div class="filter-foot">
-                <p class="meta">选择名称和位置后自动绘制曲线；曲线在数据缺口处断开。</p>
+                <p class="meta">选择名称和位置后自动绘制曲线；若存在数据缺失，曲线将在数据缺口处断开。</p>
                 <div class="actions">
+                    <button type="button" id="btn-reset" class="btn ghost">重置</button>
                     <button type="submit" id="btn-query" class="btn primary">查询</button>
                 </div>
             </div>
@@ -194,6 +195,7 @@
                 dateStartField: $('f-date-start-field'),
                 dateEndField: $('f-date-end-field'),
                 queryBtn: $('btn-query'),
+                resetBtn: $('btn-reset'),
                 meta: $('chart-meta'),
                 summary: $('chart-summary'),
                 box: $('chart-box'),
@@ -581,6 +583,19 @@
                 el.queryBtn.textContent = busy ? '查询中…' : '查询'
             }
 
+            function resetFilters() {
+                requestSeq++
+                setLoading(false)
+                el.form.reset()
+                const range = defaultDateRange()
+                el.dateStart.value = range.start
+                el.dateEnd.value = range.end
+                updateModeFields()
+                syncSelects('type')
+                el.meta.textContent = '选择具体测点后显示'
+                clearChart('选择名称和位置后显示曲线')
+            }
+
             async function loadSeries() {
                 if (!el.name.value || !el.location.value) {
                     current = null
@@ -664,6 +679,8 @@
             el.limit.addEventListener('change', loadSeries)
             el.dateStart.addEventListener('change', loadSeries)
             el.dateEnd.addEventListener('change', loadSeries)
+
+            el.resetBtn.addEventListener('click', resetFilters)
 
             el.form.addEventListener('submit', (event) => {
                 event.preventDefault()
