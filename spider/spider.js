@@ -46,7 +46,8 @@ async function doFetch(type) {
     const url = 'https://data.rmtc.org.cn/gis/PubIndexM.html?type=' + type
     await new Promise((resolve, reject) => {
         // 发送请求，获取网页内容
-        request(url, async (error, response, body) => {
+        // 站点响应头有 obs-fold 折行，Node 严格解析器会报 HPE_INVALID_HEADER_TOKEN
+        request({ url, insecureHTTPParser: true }, async (error, response, body) => {
             if (error) {
                 console.error(error);
                 // return
@@ -137,7 +138,7 @@ async function doFetch2(parentType, parentId, parentName, relativeUrl) {
     const url = 'https://data.rmtc.org.cn/gis/' + relativeUrl
     // 发送请求，获取网页内容
     let data = await new Promise((resolve) => {
-        request(url, (error, response, body) => {
+        request({ url, insecureHTTPParser: true }, (error, response, body) => {
             if (error) {
                 console.error(error);
                 return
