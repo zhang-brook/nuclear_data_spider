@@ -421,6 +421,55 @@
                 fillSelect(el.location, locationsFor(el.type.value, el.name.value), el.location.value)
             }
 
+            function oneOf(value, allowed, fallback) {
+                return allowed.includes(value) ? value : fallback
+            }
+
+            function syncUrl(mode) {
+                const params = new URLSearchParams()
+                const latest = el.mode.value === 'latest'
+                const pairs = [
+                    ['type', el.type.value],
+                    ['name', el.name.value],
+                    ['location', el.location.value],
+                    ['mode', latest ? 'latest' : ''],
+                    ['limit', latest ? el.limit.value : ''],
+                ]
+                for (const [key, value] of pairs) {
+                    if (value) params.set(key, value)
+                }
+                params.set('dates', [...selectedDates].sort().join(','))
+                const query = params.toString()
+                const url = query ? `${location.pathname}?${query}` : location.pathname
+                if (url === location.pathname + location.search) return
+                history[mode === 'push' ? 'pushState' : 'replaceState'](null, '', url)
+            }
+
+            function restoreFromUrl() {
+                const params = new URLSearchParams(location.search)
+                el.type.value = oneOf(params.get('type'), ['0', '1'], '')
+                el.mode.value = params.get('mode') === 'latest' ? 'latest' : 'date'
+                el.limit.value = String(oneOf(Number(params.get('limit')), [10, 20, 50, 100, 200, 500, 1000], 50))
+                if (params.has('dates')) {
+                    const dates = params.get('dates').split(',').filter((date) => /^\d{4}-\d{2}-\d{2}$/.test(date))
+                    selectedDates = new Set(dates)
+                    syncDateValue()
+                }
+                const nameParam = params.get('name') || ''
+                const locationParam = params.get('location') || ''
+                const owner = optionsTree.find((item) => item.name === nameParam)
+                if (owner && !el.type.value) el.type.value = owner.type
+                fillSelect(el.name, namesFor(el.type.value), nameParam)
+                fillSelect(el.location, locationsFor(el.type.value, el.name.value), locationParam)
+                updateModeFields()
+                syncUrl('replace')
+            }
+
+            function showNoSelection() {
+                el.meta.textContent = '选择监测点后查询'
+                showMessage('选择名称和位置后查询', 'empty')
+            }
+
             function showMessage(text, className) {
                 el.tbody.replaceChildren()
                 const tr = document.createElement('tr')
@@ -575,7 +624,7 @@
                 selectedDates = new Set(dates)
                 syncDateValue()
                 updateModeFields()
-                runQuery()
+                runQuery({ push: true })
             }
 
             function selectAllCalendarDates() {
@@ -594,6 +643,7 @@
                 selectedDates = new Set()
                 syncDateValue()
                 updateModeFields()
+                syncUrl('push')
                 requestSeq++
                 setLoading(false)
                 if (!el.name.value || !el.location.value) {
@@ -616,7 +666,7 @@
                 }
                 syncDateValue()
                 updateModeFields()
-                runQuery()
+                runQuery({ push: true })
             }
 
             function renderCalendar(dates, start, end, startText) {
@@ -699,12 +749,13 @@
                 setDefaultDate()
                 updateModeFields()
                 syncSelects('type')
+                syncUrl('push')
                 refreshCalendar()
-                el.meta.textContent = '选择监测点后查询'
-                showMessage('选择名称和位置后查询', 'empty')
+                showNoSelection()
             }
 
-            async function runQuery() {
+            async function runQuery(options = {}) {
+                if (options.push) syncUrl('push')
                 if (!el.name.value || !el.location.value) {
                     requestSeq++
                     setLoading(false)
@@ -785,32 +836,32 @@
             el.type.addEventListener('change', () => {
                 syncSelects('type')
                 refreshCalendar()
-                runQuery()
+                runQuery({ push: true })
             })
 
             el.name.addEventListener('change', () => {
                 syncSelects('name')
                 refreshCalendar()
-                runQuery()
+                runQuery({ push: true })
             })
 
             el.location.addEventListener('change', () => {
                 syncSelects('location')
                 refreshCalendar()
-                runQuery()
+                runQuery({ push: true })
             })
 
             el.mode.addEventListener('change', () => {
                 updateModeFields()
-                runQuery()
+                runQuery({ push: true })
             })
 
-            el.limit.addEventListener('change', runQuery)
+            el.limit.addEventListener('change', () => runQuery({ push: true }))
 
             el.date.addEventListener('change', () => {
                 selectedDates = el.date.value ? new Set([el.date.value]) : new Set()
                 updateModeFields()
-                runQuery()
+                runQuery({ push: true })
             })
 
             el.calendarSelectAll.addEventListener('click', selectAllCalendarDates)
@@ -822,7 +873,14 @@
 
             el.form.addEventListener('submit', (event) => {
                 event.preventDefault()
-                runQuery()
+                runQuery({ push: true })
+            })
+
+            window.addEventListener('popstate', async () => {
+                restoreFromUrl()
+                refreshCalendar()
+                if (el.name.value && el.location.value) runQuery()
+                else showNoSelection()
             })
 
             async function init() {
@@ -830,8 +888,10 @@
                 updateModeFields()
                 await loadOptionsTree()
                 syncSelects('type')
+                restoreFromUrl()
                 refreshCalendar()
-                showMessage('选择名称和位置后查询', 'empty')
+                if (el.name.value && el.location.value) runQuery()
+                else showNoSelection()
             }
 
             init()

@@ -306,6 +306,49 @@
                 fillSelect(el.location, locationsFor(el.type.value, el.name.value), el.location.value)
             }
 
+            function oneOf(value, allowed, fallback) {
+                return allowed.includes(value) ? value : fallback
+            }
+
+            function syncUrl(mode) {
+                const params = new URLSearchParams()
+                const range = el.mode.value === 'range'
+                const pairs = [
+                    ['type', el.type.value],
+                    ['name', el.name.value],
+                    ['location', el.location.value],
+                    ['mode', range ? 'range' : ''],
+                    ['limit', range ? '' : el.limit.value],
+                    ['ds', range ? el.dateStart.value : ''],
+                    ['de', range ? el.dateEnd.value : ''],
+                ]
+                for (const [key, value] of pairs) {
+                    if (value) params.set(key, value)
+                }
+                const query = params.toString()
+                const url = query ? `${location.pathname}?${query}` : location.pathname
+                if (url === location.pathname + location.search) return
+                history[mode === 'push' ? 'pushState' : 'replaceState'](null, '', url)
+            }
+
+            function restoreFromUrl() {
+                const params = new URLSearchParams(location.search)
+                el.type.value = oneOf(params.get('type'), ['0', '1'], '')
+                el.mode.value = params.get('mode') === 'range' ? 'range' : 'latest'
+                el.limit.value = String(oneOf(Number(params.get('limit')), [10, 20, 50, 100, 200, 500, 1000], 200))
+                const range = defaultDateRange()
+                el.dateStart.value = params.get('ds') || range.start
+                el.dateEnd.value = params.get('de') || range.end
+                const nameParam = params.get('name') || ''
+                const locationParam = params.get('location') || ''
+                const owner = optionsTree.find((item) => item.name === nameParam)
+                if (owner && !el.type.value) el.type.value = owner.type
+                fillSelect(el.name, namesFor(el.type.value), nameParam)
+                fillSelect(el.location, locationsFor(el.type.value, el.name.value), locationParam)
+                updateModeFields()
+                syncUrl('replace')
+            }
+
             function updateModeFields() {
                 const range = el.mode.value === 'range'
                 el.limitField.hidden = range
@@ -594,11 +637,13 @@
                 el.dateEnd.value = range.end
                 updateModeFields()
                 syncSelects('type')
+                syncUrl('push')
                 el.meta.textContent = '选择具体测点后显示'
                 clearChart('选择名称和位置后显示曲线')
             }
 
-            async function loadSeries() {
+            async function loadSeries(options = {}) {
+                if (options.push) syncUrl('push')
                 if (!el.name.value || !el.location.value) {
                     current = null
                     el.meta.textContent = '选择名称和位置后显示'
@@ -660,37 +705,42 @@
 
             el.type.addEventListener('change', () => {
                 syncSelects('type')
-                loadSeries()
+                loadSeries({ push: true })
             })
 
             el.name.addEventListener('change', () => {
                 syncSelects('name')
-                loadSeries()
+                loadSeries({ push: true })
             })
 
             el.location.addEventListener('change', () => {
                 syncSelects('location')
-                loadSeries()
+                loadSeries({ push: true })
             })
 
             el.mode.addEventListener('change', () => {
                 updateModeFields()
-                loadSeries()
+                loadSeries({ push: true })
             })
 
-            el.limit.addEventListener('change', loadSeries)
-            el.dateStart.addEventListener('change', loadSeries)
-            el.dateEnd.addEventListener('change', loadSeries)
+            el.limit.addEventListener('change', () => loadSeries({ push: true }))
+            el.dateStart.addEventListener('change', () => loadSeries({ push: true }))
+            el.dateEnd.addEventListener('change', () => loadSeries({ push: true }))
 
             el.resetBtn.addEventListener('click', resetFilters)
 
             el.form.addEventListener('submit', (event) => {
                 event.preventDefault()
-                loadSeries()
+                loadSeries({ push: true })
             })
 
             window.addEventListener('resize', () => {
                 if (current) drawChart(current.points, current.unit)
+            })
+
+            window.addEventListener('popstate', () => {
+                restoreFromUrl()
+                loadSeries()
             })
 
             async function init() {
@@ -700,7 +750,8 @@
                 updateModeFields()
                 await loadOptionsTree()
                 syncSelects('type')
-                clearChart('选择名称和位置后显示曲线')
+                restoreFromUrl()
+                loadSeries()
             }
 
             init()
