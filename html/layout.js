@@ -114,6 +114,9 @@
         const range = document.getElementById('overview-range')
         if (range) range.textContent = `数据日期 ${data.minDate || '—'} ~ ${data.maxDate || '—'}`
 
+        const heroUpdate = document.getElementById('hero-update')
+        if (heroUpdate && data.maxDate) heroUpdate.textContent = `，数据更新至 ${data.maxDate}`
+
         const types = document.getElementById('overview-types')
         if (types) {
             types.replaceChildren(
