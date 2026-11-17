@@ -70,6 +70,74 @@
 
     window.siteUtils = { copyText, rowCopyText }
 
+    const API_BASE = (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
+        ? 'http://localhost:35590/'
+        : '/api/'
+
+    const fmtNumber = (value) => Number(value || 0).toLocaleString('zh-CN')
+
+    function statBox(label, value) {
+        const box = el('div', 'stat')
+        box.append(el('b', '', value), el('span', '', label))
+        return box
+    }
+
+    function typeBlock(label, count, kind) {
+        const box = el('div', `type-block ${kind}`)
+        box.append(el('span', '', label), el('b', '', `${fmtNumber(count)} 条`))
+        return box
+    }
+
+    function renderStats(data) {
+        const counts = {}
+        for (const item of data.types || []) {
+            counts[item.type] = Number(item.cnt) || 0
+        }
+
+        const items = [
+            ['总记录', fmtNumber(data.total)],
+            ['数据日期', `${data.minDate || '—'} ~ ${data.maxDate || '—'}`],
+            ['近 7 日拉取', fmtNumber(data.recent7)],
+            ['最近更新', data.lastUpdate || '—'],
+        ]
+
+        const bar = document.getElementById('stats')
+        if (bar) bar.replaceChildren(...items.map(([label, value]) => statBox(label, value)))
+
+        const grid = document.getElementById('overview-stats')
+        if (grid) {
+            grid.replaceChildren(...items
+                .filter(([label]) => label !== '数据日期')
+                .map(([label, value]) => statBox(label, value)))
+        }
+
+        const range = document.getElementById('overview-range')
+        if (range) range.textContent = `数据日期 ${data.minDate || '—'} ~ ${data.maxDate || '—'}`
+
+        const types = document.getElementById('overview-types')
+        if (types) {
+            types.replaceChildren(
+                typeBlock('环境质量监测点', counts['0'], 'env'),
+                typeBlock('核电厂监测点', counts['1'], 'nuclear')
+            )
+            types.hidden = false
+        }
+    }
+
+    async function loadStats() {
+        const target = document.getElementById('stats') || document.getElementById('overview-stats')
+        if (!target) return
+        try {
+            const response = await fetch(API_BASE + 'nuclear_data/stats')
+            if (!response.ok) throw new Error(`HTTP ${response.status}`)
+            renderStats(await response.json())
+        } catch (error) {
+            target.replaceChildren(statBox('数据概览', '加载失败'))
+            const range = document.getElementById('overview-range')
+            if (range) range.textContent = '数据概览加载失败'
+        }
+    }
+
     function buildNav() {
         const host = document.getElementById('site-nav')
         if (!host) return
@@ -137,4 +205,5 @@
 
     buildNav()
     buildFooter()
+    loadStats()
 })()

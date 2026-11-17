@@ -152,7 +152,6 @@
                 queryBtn: $('btn-query'),
                 resetBtn: $('btn-reset'),
                 exportBtn: $('btn-export'),
-                stats: $('stats'),
                 meta: $('result-meta'),
                 tbody: $('tbody'),
                 pager: $('pager'),
@@ -200,35 +199,6 @@
                 const end = new Date()
                 const start = new Date(end.getTime() - 14 * 24 * 3600 * 1000)
                 return { start: dateString(start), end: dateString(end) }
-            }
-
-            function stat(label, value) {
-                const box = document.createElement('div')
-                box.className = 'stat'
-                const strong = document.createElement('b')
-                strong.textContent = value
-                const span = document.createElement('span')
-                span.textContent = label
-                box.append(strong, span)
-                return box
-            }
-
-            async function loadStats() {
-                try {
-                    const data = await request('nuclear_data/stats')
-                    const counts = {}
-                    for (const item of data.types || []) {
-                        counts[item.type] = Number(item.cnt)
-                    }
-                    el.stats.replaceChildren(
-                        stat('总记录', fmt(data.total)),
-                        stat('数据日期', `${data.minDate || '—'} ~ ${data.maxDate || '—'}`),
-                        stat('最近更新', data.lastTime || '—'),
-                        stat('环境 / 核电', `${fmt(counts['0'] || 0)} / ${fmt(counts['1'] || 0)}`)
-                    )
-                } catch (error) {
-                    el.stats.replaceChildren(stat('数据概览', '加载失败'))
-                }
             }
 
             let optionsTree = []
@@ -813,7 +783,6 @@
             })
 
             async function init() {
-                loadStats()
                 await loadOptionsTree()
                 await restoreFromUrl()
                 await runQuery({})

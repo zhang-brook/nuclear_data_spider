@@ -75,9 +75,92 @@
             font-size: 13px;
         }
 
+        .overview {
+            margin-top: 14px;
+            padding: 20px;
+        }
+
+        .overview h2 {
+            margin: 0;
+            font-size: 15px;
+        }
+
+        .overview-head {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 6px 16px;
+            flex-wrap: wrap;
+        }
+
+        .overview-head .meta {
+            margin: 0;
+        }
+
+        .overview-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 12px;
+            margin-top: 14px;
+        }
+
+        .overview-grid .stat {
+            padding: 14px 16px;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: #f8fafc;
+        }
+
+        .overview-grid .stat b {
+            font-size: 20px;
+            line-height: 1.3;
+        }
+
+        .overview-types {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+            margin-top: 12px;
+        }
+
+        .type-block {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 14px 16px;
+            border-radius: 8px;
+            font-size: 13px;
+        }
+
+        .type-block.env {
+            background: #eef2ff;
+            color: #3730a3;
+        }
+
+        .type-block.nuclear {
+            background: #fff7ed;
+            color: #9a3412;
+        }
+
+        .type-block b {
+            font-size: 20px;
+            font-weight: 600;
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+        }
+
         @media (max-width: 720px) {
             .hero {
                 padding: 24px 20px;
+            }
+
+            .overview-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .overview-types {
+                grid-template-columns: 1fr;
             }
         }
     </style>
@@ -95,6 +178,17 @@
                 <a class="btn primary" href="./chart.html">数据曲线</a>
                 <a class="btn" href="./basic.html">基础查询</a>
             </div>
+        </section>
+
+        <section class="card overview" aria-label="数据概览">
+            <div class="overview-head">
+                <h2>数据概览</h2>
+                <p class="meta" id="overview-range">加载中…</p>
+            </div>
+            <div class="overview-grid" id="overview-stats">
+                <div class="stat"><b>加载中…</b><span>数据概览</span></div>
+            </div>
+            <div class="overview-types" id="overview-types" hidden></div>
         </section>
 
         <div class="feature-grid">

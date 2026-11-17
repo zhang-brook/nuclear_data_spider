@@ -455,7 +455,8 @@ app.get('/nuclear_data/stats', function (req, res) {
     const sql = `SELECT COUNT(*) AS total,
                         DATE_FORMAT(MIN(date), '%Y-%m-%d') AS minDate,
                         DATE_FORMAT(MAX(date), '%Y-%m-%d') AS maxDate,
-                        MAX(time) AS lastTime
+                        LEFT(MAX(time), 10) AS lastUpdate,
+                        SUM(date >= DATE_SUB(CURDATE(), INTERVAL 6 DAY)) AS recent7
                  FROM nuclear_data`;
     pool.query(sql, function (err, rows) {
         if (err) {
@@ -469,7 +470,11 @@ app.get('/nuclear_data/stats', function (req, res) {
                 res.status(500).send('服务器错误');
                 return;
             }
-            res.json(Object.assign({}, rows[0], { types }));
+            const stats = Object.assign({}, rows[0], {
+                recent7: Number(rows[0].recent7) || 0,
+                types,
+            });
+            res.json(stats);
         });
     });
 });
