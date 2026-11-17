@@ -9,12 +9,7 @@ const mysql = require('mysql2');
 // https://data.rmtc.org.cn/gis/PubIndexM.html?type=0
 // https://data.rmtc.org.cn/gis/PubIndexM.html?type=1
 
-const mysqlConfig = {
-    host: 'localhost', // 数据库地址
-    user: 'root', // 数据库用户名
-    password: '123456', // 数据库密码
-    database: 'open_data' // 数据库名称
-}
+const mysqlConfig = require('../config')
 
 // main()
 async function main() {

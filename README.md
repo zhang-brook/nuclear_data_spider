@@ -36,6 +36,14 @@ Gitee: https://gitee.com/zhang-brook/nuclear_data_spider
 
 后端和数据采集端需要在 node 环境下运行，初次使用需要 `npm i` 安装依赖。
 
+数据库连接通过项目根目录的 `.env` 配置。先复制模板，再按需修改：
+
+```bash
+cp .env.example .env
+```
+
+可用项：`DB_HOST`、`DB_PORT`、`DB_USER`、`DB_PASSWORD`、`DB_NAME`；未配置时连接本机 `root` / 空密码 / `open_data`。
+
 
 
 ## 一些说明

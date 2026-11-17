@@ -1,5 +1,6 @@
 const express = require('express');
 const mysql = require('mysql2');
+const dbConfig = require('../config');
 const app = express();
 
 const port = 35590
@@ -7,10 +8,7 @@ const port = 35590
 // 创建连接池
 const pool = mysql.createPool({
     connectionLimit: 5, // 设置连接池的大小
-    host: 'localhost',
-    user: 'root',
-    password: '123456',
-    database: 'open_data'
+    ...dbConfig
 });
 
 // 设置跨域访问
