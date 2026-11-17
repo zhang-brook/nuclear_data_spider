@@ -4,6 +4,7 @@ const dbConfig = require('../config');
 const app = express();
 
 const port = 35590
+const MAX_LATEST_ROWS = 1000
 
 // 创建连接池
 const pool = mysql.createPool({
@@ -266,11 +267,16 @@ app.post('/api/nuclear_data/export', function (req, res) {
 app.post('/nuclear_data/list', function (req, res) {
     const body = req.body || {};
 
+    let latestLimit = parseInt(body.latestLimit, 10);
+    latestLimit = Number.isFinite(latestLimit)
+        ? Math.min(Math.max(latestLimit, 1), MAX_LATEST_ROWS)
+        : null;
+
     let page = parseInt(body.page, 10);
     if (!Number.isFinite(page) || page < 1) page = 1;
     let pageSize = parseInt(body.pageSize, 10);
     if (!Number.isFinite(pageSize)) pageSize = 20;
-    pageSize = Math.min(Math.max(pageSize, 10), 200);
+    pageSize = Math.min(Math.max(pageSize, 10), 1000);
 
     const type = body.type === '0' || body.type === '1' ? body.type : null;
     const name = typeof body.name === 'string' && body.name.trim() ? body.name.trim() : null;
@@ -279,6 +285,9 @@ app.post('/nuclear_data/list', function (req, res) {
     const keyword = typeof body.keyword === 'string' ? body.keyword.trim().slice(0, 100) : '';
     const dateStart = isValidDateStr(body.dateStart) ? body.dateStart : null;
     const dateEnd = isValidDateStr(body.dateEnd) ? body.dateEnd : null;
+    const dates = Array.isArray(body.dates)
+        ? [...new Set(body.dates.filter((value) => isValidDateStr(value)))].slice(0, 31)
+        : [];
     const valueMin = toFiniteNumber(body.valueMin);
     const valueMax = toFiniteNumber(body.valueMax);
 
@@ -312,6 +321,10 @@ app.post('/nuclear_data/list', function (req, res) {
     if (dateEnd) {
         where.push('date <= ?');
         params.push(dateEnd);
+    }
+    if (dates.length) {
+        where.push(`date IN (${dates.map(() => '?').join(', ')})`);
+        params.push(...dates);
     }
     if (valueMin !== null) {
         where.push(`CAST(SUBSTRING_INDEX(value, ' ', 1) AS DECIMAL(12,2)) >= ?`);
@@ -359,16 +372,24 @@ app.post('/nuclear_data/list', function (req, res) {
             return;
         }
         const total = countResult[0].total;
-        const maxPage = Math.max(1, Math.ceil(total / pageSize));
-        if (page > maxPage) page = maxPage;
-        const offset = (page - 1) * pageSize;
-        pool.query(rowsSql, params.concat([pageSize, offset]), function (err, rows) {
+        if (latestLimit === null) {
+            const maxPage = Math.max(1, Math.ceil(total / pageSize));
+            if (page > maxPage) page = maxPage;
+        }
+        const offset = latestLimit === null ? (page - 1) * pageSize : 0;
+        const rowLimit = latestLimit === null ? pageSize : latestLimit;
+        pool.query(rowsSql, params.concat([rowLimit, offset]), function (err, rows) {
             if (err) {
                 console.error(err);
                 res.status(500).send('服务器错误');
                 return;
             }
-            res.json({ total, page, pageSize, rows });
+            res.json({
+                total,
+                page: latestLimit === null ? page : 1,
+                pageSize: rowLimit,
+                rows,
+            });
         });
     });
 });

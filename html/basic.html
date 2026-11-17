@@ -11,6 +11,142 @@
         .result-card table {
             min-width: 560px;
         }
+
+        .calendar-block {
+            margin-top: 16px;
+        }
+
+        .calendar-head {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 4px 12px;
+        }
+
+        .calendar-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        .calendar-meta,
+        .calendar-hint {
+            color: var(--muted);
+            font-size: 12px;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .calendar-legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-left: auto;
+            color: var(--muted);
+            font-size: 12px;
+        }
+
+        .calendar-legend span {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .legend-dot {
+            width: 9px;
+            height: 9px;
+            border-radius: 2px;
+        }
+
+        .legend-dot.has {
+            background: #bbf7d0;
+            border: 1px solid #86efac;
+        }
+
+        .legend-dot.none {
+            background: #f1f5f9;
+            border: 1px solid #e2e8f0;
+        }
+
+        .calendar-strip {
+            display: flex;
+            gap: 4px;
+            margin-top: 8px;
+            padding: 3px 2px;
+            overflow-x: auto;
+            scrollbar-width: thin;
+        }
+
+        .calendar-day {
+            display: flex;
+            flex: 0 0 auto;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 1px;
+            width: 30px;
+            height: 30px;
+            padding: 0;
+            border: 1px solid transparent;
+            border-radius: 6px;
+            font: inherit;
+            font-size: 11px;
+            font-variant-numeric: tabular-nums;
+            line-height: 1.1;
+        }
+
+        .calendar-day.has {
+            background: #bbf7d0;
+            border-color: #86efac;
+            color: #166534;
+            cursor: pointer;
+        }
+
+        .calendar-day.has:hover {
+            border-color: #16a34a;
+            box-shadow: 0 2px 6px rgba(22, 101, 52, .18);
+        }
+
+        .calendar-day.none {
+            background: #f1f5f9;
+            border-color: #eef2f7;
+            color: #94a3b8;
+            cursor: pointer;
+        }
+
+        .calendar-day.none:hover {
+            border-color: #cbd5e1;
+        }
+
+        .calendar-day.selected,
+        .calendar-day:focus-visible {
+            outline: 2px solid var(--primary);
+            outline-offset: 1px;
+        }
+
+        .calendar-month {
+            font-size: 8px;
+            line-height: 1;
+            opacity: .85;
+        }
+
+        .calendar-state {
+            flex: 1 0 100%;
+            margin: 0;
+            padding: 8px 0;
+            color: var(--muted);
+            font-size: 12px;
+            text-align: center;
+        }
+
+        @media (max-width: 720px) {
+            .calendar-legend {
+                margin-left: 0;
+            }
+
+            .calendar-hint::after {
+                content: ' · 左右滑动';
+            }
+        }
     </style>
 </head>
 
@@ -37,12 +173,42 @@
                         <option value="">请选择位置</option>
                     </select>
                 </label>
-                <label class="field">日期
+                <label class="field">查询方式
+                    <select id="mode" name="mode">
+                        <option value="date" selected>指定日期</option>
+                        <option value="latest">最近 N 条</option>
+                    </select>
+                </label>
+                <label class="field" id="date-field">日期
                     <input type="date" id="date" name="date" required min="2023-08-25">
+                    <input type="text" id="date-multi" readonly hidden aria-label="已选日期">
+                </label>
+                <label class="field" id="limit-field" hidden>最近条数
+                    <select id="limit" name="limit">
+                        <option value="10">10 条</option>
+                        <option value="20">20 条</option>
+                        <option value="50" selected>50 条</option>
+                        <option value="100">100 条</option>
+                        <option value="200">200 条</option>
+                        <option value="500">500 条</option>
+                        <option value="1000">1000 条</option>
+                    </select>
                 </label>
             </div>
+            <div class="calendar-block" id="calendar-card" hidden>
+                <div class="calendar-head">
+                    <span class="calendar-title">近 30 天数据</span>
+                    <span class="calendar-meta" id="calendar-meta"></span>
+                    <span class="calendar-hint">可多选，再次点击取消</span>
+                    <div class="calendar-legend" aria-hidden="true">
+                        <span><i class="legend-dot has"></i>有数据</span>
+                        <span><i class="legend-dot none"></i>无数据</span>
+                    </div>
+                </div>
+                <div class="calendar-strip" id="calendar-grid"></div>
+            </div>
             <div class="filter-foot">
-                <p class="meta">数据自 2023-08-25 起收录 · 展示所选日期及前 3 天的记录</p>
+                <p class="meta" id="query-hint">数据自 2023-08-25 起收录 · 指定日期展示当天及前 3 天的记录</p>
                 <div class="actions">
                     <button type="button" id="reset-btn" class="btn ghost">重置</button>
                     <button type="submit" id="submit-btn" class="btn primary">查询</button>
@@ -93,17 +259,28 @@
                 type: $('type'),
                 name: $('name'),
                 location: $('location'),
+                mode: $('mode'),
+                dateField: $('date-field'),
+                limitField: $('limit-field'),
+                limit: $('limit'),
                 date: $('date'),
+                dateMulti: $('date-multi'),
                 resetBtn: $('reset-btn'),
                 submitBtn: $('submit-btn'),
+                hint: $('query-hint'),
                 meta: $('result-meta'),
+                calendarCard: $('calendar-card'),
+                calendarMeta: $('calendar-meta'),
+                calendarGrid: $('calendar-grid'),
                 tbody: $('tbody'),
                 toast: $('toast'),
             }
 
             let optionsTree = []
             let requestSeq = 0
+            let calendarSeq = 0
             let toastTimer = null
+            let selectedDates = new Set()
 
             const collator = new Intl.Collator('zh-Hans-CN')
 
@@ -143,7 +320,8 @@
 
             function setDefaultDate() {
                 el.date.value = dateString(new Date(Date.now() - 2 * 24 * 3600 * 1000))
-                el.date.max = dateString(new Date(Date.now() - 24 * 3600 * 1000))
+                el.date.max = dateString(new Date())
+                selectedDates = new Set([el.date.value])
             }
 
             function toast(message, kind) {
@@ -296,26 +474,174 @@
                 el.submitBtn.textContent = busy ? '查询中…' : '查询'
             }
 
+            function updateModeFields() {
+                const latest = el.mode.value === 'latest'
+                const multi = !latest && selectedDates.size > 1
+                el.dateField.hidden = latest
+                el.limitField.hidden = !latest
+                el.date.hidden = multi
+                el.dateMulti.hidden = !multi
+                el.date.required = !latest && !multi
+                if (multi) {
+                    el.dateMulti.value = `已选 ${selectedDates.size} 天`
+                    el.dateMulti.title = [...selectedDates].sort().join('、')
+                } else {
+                    el.dateMulti.value = ''
+                    el.dateMulti.removeAttribute('title')
+                }
+                el.hint.textContent = latest
+                    ? '数据自 2023-08-25 起收录 · 查看该测点最近 N 条记录'
+                    : multi
+                        ? `数据自 2023-08-25 起收录 · 已选 ${selectedDates.size} 天，仅查询所选日期`
+                        : '数据自 2023-08-25 起收录 · 指定日期展示当天及前 3 天的记录'
+                markSelectedDates()
+            }
+
+            function hideCalendar() {
+                calendarSeq++
+                el.calendarCard.hidden = true
+                el.calendarGrid.replaceChildren()
+                el.calendarMeta.textContent = ''
+            }
+
+            function showCalendarState(text) {
+                el.calendarGrid.replaceChildren()
+                const state = document.createElement('p')
+                state.className = 'calendar-state'
+                state.textContent = text
+                el.calendarGrid.appendChild(state)
+            }
+
+            function markSelectedDates() {
+                const show = el.mode.value === 'date'
+                for (const cell of el.calendarGrid.querySelectorAll('.calendar-day')) {
+                    const selected = show && selectedDates.has(cell.dataset.date)
+                    cell.classList.toggle('selected', selected)
+                    cell.setAttribute('aria-pressed', selected ? 'true' : 'false')
+                }
+            }
+
+            function selectCalendarDate(date) {
+                if (el.mode.value === 'latest') {
+                    el.mode.value = 'date'
+                    selectedDates = new Set([date])
+                } else if (selectedDates.has(date)) {
+                    selectedDates.delete(date)
+                } else {
+                    selectedDates.add(date)
+                }
+                el.date.value = selectedDates.size === 1 ? [...selectedDates][0] : ''
+                updateModeFields()
+                runQuery()
+            }
+
+            function renderCalendar(dates, start, end, startText) {
+                el.calendarGrid.replaceChildren()
+                const fragment = document.createDocumentFragment()
+                const cursor = new Date(start.getFullYear(), start.getMonth(), start.getDate())
+                while (cursor <= end) {
+                    const text = dateString(cursor)
+                    const hasData = dates.has(text)
+                    const cell = document.createElement('button')
+                    cell.type = 'button'
+                    cell.className = 'calendar-day ' + (hasData ? 'has' : 'none')
+                    cell.dataset.date = text
+                    cell.textContent = String(cursor.getDate())
+                    cell.setAttribute('aria-pressed', 'false')
+                    if (hasData) {
+                        cell.title = `${text} · 有数据`
+                        cell.setAttribute('aria-label', `${text}，有数据，点击选择或取消`)
+                    } else {
+                        cell.title = `${text} · 无数据`
+                        cell.setAttribute('aria-label', `${text}，无数据，点击选择或取消`)
+                    }
+                    cell.addEventListener('click', () => selectCalendarDate(text))
+                    if (cursor.getDate() === 1 || text === startText) {
+                        const month = document.createElement('span')
+                        month.className = 'calendar-month'
+                        month.textContent = `${cursor.getMonth() + 1}月`
+                        cell.appendChild(month)
+                    }
+                    if (el.mode.value === 'date' && selectedDates.has(text)) {
+                        cell.classList.add('selected')
+                        cell.setAttribute('aria-pressed', 'true')
+                    }
+                    fragment.appendChild(cell)
+                    cursor.setDate(cursor.getDate() + 1)
+                }
+                el.calendarGrid.appendChild(fragment)
+                el.calendarGrid.scrollLeft = el.calendarGrid.scrollWidth
+            }
+
+            async function loadCalendar(name, location) {
+                const seq = ++calendarSeq
+                const end = new Date()
+                const start = new Date(end.getFullYear(), end.getMonth(), end.getDate() - 29)
+                const startText = dateString(start)
+                const endText = dateString(end)
+
+                el.calendarCard.hidden = false
+                el.calendarMeta.textContent = `${startText} ~ ${endText}`
+                showCalendarState('加载中…')
+
+                try {
+                    const result = await post('nuclear_data/list', {
+                        name,
+                        location,
+                        dateStart: startText,
+                        dateEnd: endText,
+                        page: 1,
+                        pageSize: 200,
+                        sortBy: 'date',
+                        sortOrder: 'asc',
+                    })
+                    if (seq !== calendarSeq) return
+                    const dates = new Set((result.rows || []).map((row) => row.date))
+                    renderCalendar(dates, start, end, startText)
+                } catch (error) {
+                    if (seq !== calendarSeq) return
+                    showCalendarState('日历加载失败')
+                }
+            }
+
+            function refreshCalendar() {
+                if (!el.name.value || !el.location.value) {
+                    hideCalendar()
+                    return
+                }
+                loadCalendar(el.name.value, el.location.value)
+            }
+
             function resetFilters() {
                 requestSeq++
                 setLoading(false)
                 el.form.reset()
                 setDefaultDate()
+                updateModeFields()
                 syncSelects('type')
+                hideCalendar()
                 el.meta.textContent = '选择监测点后查询'
                 showMessage('选择名称和位置后查询', 'empty')
             }
 
             async function runQuery() {
                 if (!el.name.value || !el.location.value) {
+                    requestSeq++
+                    setLoading(false)
                     el.meta.textContent = '请选择名称和位置'
                     showMessage('请选择名称和位置', 'empty')
                     return
                 }
-                if (!el.date.value) {
+                const mode = el.mode.value === 'latest' ? 'latest' : 'date'
+                if (mode === 'date' && selectedDates.size === 0) {
+                    requestSeq++
+                    setLoading(false)
+                    el.meta.textContent = '请选择日期'
+                    showMessage('请选择日期', 'empty')
                     toast('请选择日期', 'error')
                     return
                 }
+                const limit = Math.min(Math.max(Number(el.limit.value) || 50, 10), 1000)
 
                 const seq = ++requestSeq
                 setLoading(true)
@@ -323,15 +649,45 @@
                 showMessage('查询中…')
 
                 try {
-                    const rows = await post('nuclear_data', {
-                        type: el.type.value,
-                        name: el.name.value,
-                        location: el.location.value,
-                        date: el.date.value,
-                    })
-                    if (seq !== requestSeq) return
+                    let rows
+                    if (mode === 'latest') {
+                        const result = await post('nuclear_data/list', {
+                            type: el.type.value,
+                            name: el.name.value,
+                            location: el.location.value,
+                            latestLimit: limit,
+                            sortBy: 'date',
+                            sortOrder: 'desc',
+                        })
+                        if (seq !== requestSeq) return
+                        rows = result.rows || []
+                        el.meta.textContent = `${el.name.value} · ${el.location.value} · 最近 ${limit} 条 · 共 ${rows.length} 条`
+                    } else if (selectedDates.size > 1) {
+                        const dates = [...selectedDates].sort()
+                        const result = await post('nuclear_data/list', {
+                            type: el.type.value,
+                            name: el.name.value,
+                            location: el.location.value,
+                            dates,
+                            page: 1,
+                            pageSize: 1000,
+                            sortBy: 'date',
+                            sortOrder: 'desc',
+                        })
+                        if (seq !== requestSeq) return
+                        rows = result.rows || []
+                        el.meta.textContent = `${el.name.value} · ${el.location.value} · 已选 ${dates.length} 天 · 共 ${rows.length} 条`
+                    } else {
+                        rows = await post('nuclear_data', {
+                            type: el.type.value,
+                            name: el.name.value,
+                            location: el.location.value,
+                            date: el.date.value,
+                        })
+                        if (seq !== requestSeq) return
+                        el.meta.textContent = `${el.name.value} · ${el.location.value} · ${el.date.value} 及前 3 天 · 共 ${rows.length} 条`
+                    }
 
-                    el.meta.textContent = `${el.name.value} · ${el.location.value} · ${el.date.value} 及前 3 天 · 共 ${rows.length} 条`
                     if (!rows.length) {
                         showMessage('没有找到符合条件的数据', 'empty')
                         return
@@ -348,20 +704,34 @@
 
             el.type.addEventListener('change', () => {
                 syncSelects('type')
+                refreshCalendar()
                 runQuery()
             })
 
             el.name.addEventListener('change', () => {
                 syncSelects('name')
+                refreshCalendar()
                 runQuery()
             })
 
             el.location.addEventListener('change', () => {
                 syncSelects('location')
+                refreshCalendar()
                 runQuery()
             })
 
-            el.date.addEventListener('change', runQuery)
+            el.mode.addEventListener('change', () => {
+                updateModeFields()
+                runQuery()
+            })
+
+            el.limit.addEventListener('change', runQuery)
+
+            el.date.addEventListener('change', () => {
+                selectedDates = el.date.value ? new Set([el.date.value]) : new Set()
+                updateModeFields()
+                runQuery()
+            })
 
             el.resetBtn.addEventListener('click', resetFilters)
 
@@ -372,6 +742,7 @@
 
             async function init() {
                 setDefaultDate()
+                updateModeFields()
                 await loadOptionsTree()
                 syncSelects('type')
                 showMessage('选择名称和位置后查询', 'empty')
