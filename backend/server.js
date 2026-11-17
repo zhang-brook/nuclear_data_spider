@@ -221,6 +221,7 @@ app.post('/api/nuclear_data/export', function (req, res) {
 
     if (!year || !month || year.indexOf('.') != -1 || month.indexOf('.') != -1) {
         res.status(400).send('参数错误');
+        return
     }
 
     year = Number(year);
@@ -234,6 +235,7 @@ app.post('/api/nuclear_data/export', function (req, res) {
     // if (day) {
     //     if (day.indexOf('.') != -1) {
     //         res.status(400).send('参数错误');
+    //         return
     //     }
     //     day = Number(day);
     //     if (isNaN(day) || day < 1 || day > 31) {
