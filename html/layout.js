@@ -2,9 +2,10 @@
     'use strict'
 
     const pages = [
-        { file: 'basic.html', label: '基础查询' },
+        { file: 'index.html', label: '首页' },
         { file: 'query.html', label: '数据列表' },
         { file: 'chart.html', label: '数据曲线' },
+        { file: 'basic.html', label: '基础查询' },
     ]
 
     function el(tag, className, text) {
@@ -75,7 +76,7 @@
 
         const inner = el('div', 'wrap topbar-inner')
         const brand = el('a', 'brand')
-        brand.href = './basic.html'
+        brand.href = './index.html'
         brand.appendChild(el('h1', '', '辐射环境监测数据'))
         brand.appendChild(el('p', '', '国家核安全局公开数据'))
 
