@@ -10,11 +10,11 @@
 
 ## 开源地址
 
-GitHub: https://github.com/coder-xiaomo/nuclear_data_spider
+GitHub: https://github.com/zhang-brook/nuclear_data_spider
 
-Gitee: https://gitee.com/coder-xiaomo/nuclear_data_spider
+Gitee: https://gitee.com/zhang-brook/nuclear_data_spider
 
-自建仓库: https://git.only4.work/coder-xiaomo/nuclear_data_spider
+自建仓库: https://git.only4.work/zhang-brook/nuclear_data_spider
 
 
 
