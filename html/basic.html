@@ -96,6 +96,7 @@
             padding: 3px 2px;
             overflow-x: auto;
             scrollbar-width: thin;
+            user-select: none;
         }
 
         .calendar-day {
@@ -228,9 +229,9 @@
             </div>
             <div class="calendar-block" id="calendar-card">
                 <div class="calendar-head">
-                    <span class="calendar-title">近 30 天数据</span>
+                    <span class="calendar-title">快捷选择日期</span>
                     <span class="calendar-meta" id="calendar-meta"></span>
-                    <span class="calendar-hint">可多选，再次点击取消</span>
+                    <span class="calendar-hint">可多选，按住拖动批量选择/取消</span>
                     <div class="calendar-actions">
                         <button type="button" id="calendar-select-all" class="link-btn">全选</button>
                         <button type="button" id="calendar-invert" class="link-btn">反选</button>
@@ -321,6 +322,8 @@
             let calendarSeq = 0
             let toastTimer = null
             let selectedDates = new Set()
+            let calendarDrag = null
+            let calendarClickGuard = false
 
             const collator = new Intl.Collator('zh-Hans-CN')
 
@@ -674,6 +677,87 @@
                 runQuery({ push: true })
             }
 
+            function calendarCellAt(x, y) {
+                for (const cell of el.calendarGrid.querySelectorAll('.calendar-day')) {
+                    const rect = cell.getBoundingClientRect()
+                    if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) return cell
+                }
+                return null
+            }
+
+            // 按住拖动时按起始格状态决定这一笔是选择还是取消，中途经过的格子一并处理
+            function applyDragDates(fromDate, toDate) {
+                const dates = calendarDates()
+                const from = dates.indexOf(fromDate)
+                const to = dates.indexOf(toDate)
+                if (from < 0 || to < 0) return
+                let changed = false
+                for (let index = Math.min(from, to); index <= Math.max(from, to); index++) {
+                    const date = dates[index]
+                    if (calendarDrag.applied.has(date)) continue
+                    calendarDrag.applied.add(date)
+                    if (calendarDrag.mode === 'select') selectedDates.add(date)
+                    else selectedDates.delete(date)
+                    changed = true
+                }
+                if (!changed) return
+                syncDateValue()
+                updateModeFields()
+            }
+
+            function moveCalendarDrag(event) {
+                if (!calendarDrag) return
+                const cell = calendarCellAt(event.clientX, event.clientY)
+                if (!cell) return
+                const date = cell.dataset.date
+                if (!calendarDrag.moved) {
+                    if (date === calendarDrag.lastDate) return
+                    calendarDrag.moved = true
+                    if (el.mode.value === 'latest') {
+                        el.mode.value = 'date'
+                        selectedDates = new Set()
+                    }
+                }
+                applyDragDates(calendarDrag.lastDate, date)
+                calendarDrag.lastDate = date
+            }
+
+            function stopCalendarDrag() {
+                window.removeEventListener('pointermove', moveCalendarDrag)
+                window.removeEventListener('pointerup', stopCalendarDrag)
+                window.removeEventListener('pointercancel', stopCalendarDrag)
+                window.removeEventListener('blur', stopCalendarDrag)
+                if (!calendarDrag) return
+                const moved = calendarDrag.moved
+                calendarDrag = null
+                if (!moved) return
+                calendarClickGuard = true
+                setTimeout(() => {
+                    calendarClickGuard = false
+                }, 0)
+                runQuery({ push: true })
+            }
+
+            function startCalendarDrag(event) {
+                if (event.button !== 0 || event.pointerType === 'touch') return
+                const cell = event.target.closest('.calendar-day')
+                if (!cell) return
+                stopCalendarDrag()
+                const date = cell.dataset.date
+                const active = el.mode.value === 'date'
+                calendarDrag = {
+                    mode: active && selectedDates.has(date) ? 'deselect' : 'select',
+                    startDate: date,
+                    lastDate: date,
+                    moved: false,
+                    applied: new Set(),
+                }
+                window.addEventListener('pointermove', moveCalendarDrag)
+                window.addEventListener('pointerup', stopCalendarDrag)
+                window.addEventListener('pointercancel', stopCalendarDrag)
+                window.addEventListener('blur', stopCalendarDrag)
+            }
+
             function renderCalendar(dates, start, end, startText) {
                 el.calendarGrid.replaceChildren()
                 const fragment = document.createDocumentFragment()
@@ -694,7 +778,10 @@
                         cell.title = `${text} · 无数据`
                         cell.setAttribute('aria-label', `${text}，无数据，点击选择或取消`)
                     }
-                    cell.addEventListener('click', () => selectCalendarDate(text))
+                    cell.addEventListener('click', () => {
+                        if (calendarClickGuard) return
+                        selectCalendarDate(text)
+                    })
                     if (cursor.getDate() === 1 || text === startText) {
                         const month = document.createElement('span')
                         month.className = 'calendar-month'
@@ -873,6 +960,7 @@
             el.calendarInvert.addEventListener('click', invertCalendarDates)
             el.calendarClear.addEventListener('click', clearCalendarDates)
             el.dateMultiClear.addEventListener('click', clearCalendarDates)
+            el.calendarGrid.addEventListener('pointerdown', startCalendarDrag)
 
             el.resetBtn.addEventListener('click', resetFilters)
 
