@@ -168,8 +168,25 @@ app.post('/nuclear_data', function (req, res) {
     let name = req.body?.name;
     let location = req.body?.location;
     let date = req.body?.date;
+    let dateStart = req.body?.dateStart;
+    let dateEnd = req.body?.dateEnd;
 
-    // console.log('param', name, location, date)
+    let start;
+    let end;
+    if (isValidDateStr(date)) {
+        start = date;
+        end = date;
+    } else if (isValidDateStr(dateStart) && isValidDateStr(dateEnd)) {
+        if (dateStart > dateEnd) {
+            res.status(400).send('日期范围不合法');
+            return;
+        }
+        start = dateStart;
+        end = dateEnd;
+    } else {
+        res.status(400).send('请提供日期或日期范围');
+        return;
+    }
 
     // 从连接池中获取一个连接
     pool.getConnection(function (err, connection) {
@@ -179,8 +196,8 @@ app.post('/nuclear_data', function (req, res) {
         } else {
             // 查询数据库
             // let sql = `SELECT * FROM nuclear_data WHERE name = ? AND location = ? AND date = ?`;
-            let sql = `SELECT * FROM nuclear_data WHERE name = ? AND location = ? AND date BETWEEN DATE_SUB(?, INTERVAL 3 DAY) AND ? ORDER BY date`;
-            connection.query(sql, [name, location, date, date], function (err, result) {
+            let sql = `SELECT * FROM nuclear_data WHERE name = ? AND location = ? AND date BETWEEN ? AND ? ORDER BY date`;
+            connection.query(sql, [name, location, start, end], function (err, result) {
                 if (err) {
                     console.error(err);
                     res.status(500).send('服务器错误');

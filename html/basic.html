@@ -52,6 +52,23 @@
             white-space: nowrap;
         }
 
+        .range-field {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .range-field select {
+            flex: 1 1 0;
+            min-width: 0;
+        }
+
+        .range-field .range-sep {
+            flex: 0 0 auto;
+            color: var(--muted);
+            font-size: 12px;
+        }
+
         .calendar-actions {
             display: flex;
             gap: 10px;
@@ -204,6 +221,7 @@
                 <label class="field">查询方式
                     <select id="mode" name="mode">
                         <option value="date" selected>指定日期</option>
+                        <option value="range">指定日期范围</option>
                         <option value="latest">最近 N 条</option>
                     </select>
                 </label>
@@ -213,6 +231,14 @@
                     <div class="multi-field" id="date-multi-wrap" hidden>
                         <input type="text" id="date-multi" readonly aria-label="已选日期">
                         <button type="button" id="date-multi-clear" class="link-btn">清除选择</button>
+                    </div>
+                </div>
+                <div class="field span-2" id="range-field" hidden>
+                    <span>日期范围</span>
+                    <div class="range-field">
+                        <select id="range-start" aria-label="开始日期"></select>
+                        <span class="range-sep">至</span>
+                        <select id="range-end" aria-label="结束日期"></select>
                     </div>
                 </div>
                 <label class="field" id="limit-field" hidden>最近条数
@@ -245,7 +271,7 @@
                 <div class="calendar-strip" id="calendar-grid"></div>
             </div>
             <div class="filter-foot">
-                <p class="meta" id="query-hint">数据自 2023-08-25 起收录 · 指定日期展示当天及前 3 天的记录</p>
+                <p class="meta" id="query-hint">数据自 2023-08-25 起收录 · 仅查询所选日期</p>
                 <div class="actions">
                     <button type="button" id="reset-btn" class="btn ghost">重置</button>
                     <button type="submit" id="submit-btn" class="btn primary">查询</button>
@@ -288,6 +314,7 @@
             const API_BASE = (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
                 ? 'http://localhost:35590/'
                 : '/api/'
+            const MIN_DATE = '2023-08-25'
 
             const $ = (id) => document.getElementById(id)
 
@@ -298,6 +325,9 @@
                 location: $('location'),
                 mode: $('mode'),
                 dateField: $('date-field'),
+                rangeField: $('range-field'),
+                rangeStart: $('range-start'),
+                rangeEnd: $('range-end'),
                 limitField: $('limit-field'),
                 limit: $('limit'),
                 date: $('date'),
@@ -365,6 +395,84 @@
                 el.date.value = dateString(new Date(Date.now() - 2 * 24 * 3600 * 1000))
                 el.date.max = dateString(new Date())
                 selectedDates = new Set([el.date.value])
+            }
+
+            function rangeOptionGroups() {
+                const groups = new Map()
+                const end = new Date()
+                const cursor = new Date(`${MIN_DATE}T00:00:00`)
+                while (cursor <= end) {
+                    const text = dateString(cursor)
+                    const key = text.slice(0, 7)
+                    if (!groups.has(key)) groups.set(key, [])
+                    groups.get(key).push(text)
+                    cursor.setDate(cursor.getDate() + 1)
+                }
+                return groups
+            }
+
+            function fillRangeSelect(select, groups) {
+                const fragment = document.createDocumentFragment()
+                for (const [key, dates] of groups) {
+                    const group = document.createElement('optgroup')
+                    group.label = `${key.slice(0, 4)} 年 ${Number(key.slice(5, 7))} 月`
+                    for (const date of dates) group.appendChild(new Option(date, date))
+                    fragment.appendChild(group)
+                }
+                select.replaceChildren(fragment)
+            }
+
+            function defaultRange() {
+                const end = el.date.value || dateString(new Date(Date.now() - 2 * 24 * 3600 * 1000))
+                const start = new Date(`${end}T00:00:00`)
+                start.setDate(start.getDate() - 6)
+                const startText = dateString(start)
+                return { start: startText < MIN_DATE ? MIN_DATE : startText, end }
+            }
+
+            function resetRangeValues() {
+                const range = defaultRange()
+                el.rangeStart.value = range.start
+                el.rangeEnd.value = range.end
+            }
+
+            function fillRangeOptions() {
+                const groups = rangeOptionGroups()
+                fillRangeSelect(el.rangeStart, groups)
+                fillRangeSelect(el.rangeEnd, groups)
+                resetRangeValues()
+            }
+
+            function isContinuousDates(dates) {
+                for (let index = 1; index < dates.length; index++) {
+                    const previous = new Date(`${dates[index - 1]}T00:00:00`)
+                    previous.setDate(previous.getDate() + 1)
+                    if (dateString(previous) !== dates[index]) return false
+                }
+                return true
+            }
+
+            function rangeDates(start, end) {
+                const dates = []
+                const cursor = new Date(`${start}T00:00:00`)
+                const last = new Date(`${end}T00:00:00`)
+                while (cursor <= last) {
+                    dates.push(dateString(cursor))
+                    cursor.setDate(cursor.getDate() + 1)
+                }
+                return dates
+            }
+
+            // 只有一天为指定日期；多天连续自动切到指定日期范围；不连续仍按所选日期集合查询
+            function syncSelectionMode() {
+                const dates = [...selectedDates].sort()
+                if (dates.length > 1 && isContinuousDates(dates)) {
+                    el.mode.value = 'range'
+                    el.rangeStart.value = dates[0]
+                    el.rangeEnd.value = dates[dates.length - 1]
+                    return
+                }
+                el.mode.value = 'date'
             }
 
             function toast(message, kind) {
@@ -435,34 +543,57 @@
 
             function syncUrl(mode) {
                 const params = new URLSearchParams()
-                const latest = el.mode.value === 'latest'
+                const queryMode = el.mode.value
+                const latest = queryMode === 'latest'
+                const range = queryMode === 'range'
+                const dates = [...selectedDates].sort()
                 const pairs = [
                     ['type', el.type.value],
                     ['name', el.name.value],
                     ['location', el.location.value],
-                    ['mode', latest ? 'latest' : ''],
+                    ['mode', latest ? 'latest' : range ? 'range' : ''],
                     ['limit', latest ? el.limit.value : ''],
+                    ['ds', range && dates.length ? dates[0] : ''],
+                    ['de', range && dates.length ? dates[dates.length - 1] : ''],
                 ]
                 for (const [key, value] of pairs) {
                     if (value) params.set(key, value)
                 }
-                params.set('dates', [...selectedDates].sort().join(','))
+                if (!latest && !range) params.set('dates', dates.join(','))
                 const query = params.toString()
                 const url = query ? `${location.pathname}?${query}` : location.pathname
                 if (url === location.pathname + location.search) return
                 history[mode === 'push' ? 'pushState' : 'replaceState'](null, '', url)
             }
 
+            function isDateOption(value) {
+                return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)
+                    && value >= MIN_DATE && value <= dateString(new Date())
+            }
+
             function restoreFromUrl() {
                 const params = new URLSearchParams(location.search)
                 el.type.value = oneOf(params.get('type'), ['0', '1'], '')
-                el.mode.value = params.get('mode') === 'latest' ? 'latest' : 'date'
+                const mode = oneOf(params.get('mode'), ['latest', 'range'], 'date')
                 el.limit.value = String(oneOf(Number(params.get('limit')), [10, 20, 50, 100, 200, 500, 1000], 50))
-                if (params.has('dates')) {
-                    const dates = params.get('dates').split(',').filter((date) => /^\d{4}-\d{2}-\d{2}$/.test(date))
-                    selectedDates = new Set(dates)
-                    syncDateValue()
+                const fallback = defaultRange()
+                let rangeStart = isDateOption(params.get('ds')) ? params.get('ds') : fallback.start
+                let rangeEnd = isDateOption(params.get('de')) ? params.get('de') : fallback.end
+                if (rangeStart > rangeEnd) {
+                    const swap = rangeStart
+                    rangeStart = rangeEnd
+                    rangeEnd = swap
                 }
+                el.rangeStart.value = rangeStart
+                el.rangeEnd.value = rangeEnd
+                el.mode.value = mode
+                if (mode === 'range') {
+                    selectedDates = new Set(rangeDates(rangeStart, rangeEnd))
+                } else if (params.has('dates')) {
+                    selectedDates = new Set(params.get('dates').split(',').filter(isDateOption))
+                    if (mode === 'date') syncSelectionMode()
+                }
+                syncDateValue()
                 const nameParam = params.get('name') || ''
                 const locationParam = params.get('location') || ''
                 const owner = optionsTree.find((item) => item.name === nameParam)
@@ -567,25 +698,31 @@
             }
 
             function updateModeFields() {
-                const latest = el.mode.value === 'latest'
-                const multi = !latest && selectedDates.size > 1
-                el.dateField.hidden = latest
+                const mode = el.mode.value
+                const latest = mode === 'latest'
+                const range = mode === 'range'
+                const multi = !latest && !range && selectedDates.size > 1
+                const dates = [...selectedDates].sort()
+                el.dateField.hidden = latest || range
+                el.rangeField.hidden = !range
                 el.limitField.hidden = !latest
                 el.date.hidden = multi
                 el.dateMultiWrap.hidden = !multi
-                el.date.required = !latest && !multi
+                el.date.required = !latest && !range && !multi
                 if (multi) {
                     el.dateMulti.value = `已选 ${selectedDates.size} 天`
-                    el.dateMulti.title = [...selectedDates].sort().join('、')
+                    el.dateMulti.title = dates.join('、')
                 } else {
                     el.dateMulti.value = ''
                     el.dateMulti.removeAttribute('title')
                 }
                 el.hint.textContent = latest
                     ? '数据自 2023-08-25 起收录 · 查看该测点最近 N 条记录'
-                    : multi
-                        ? `数据自 2023-08-25 起收录 · 已选 ${selectedDates.size} 天，仅查询所选日期`
-                        : '数据自 2023-08-25 起收录 · 指定日期展示当天及前 3 天的记录'
+                    : range
+                        ? `数据自 2023-08-25 起收录 · 查询 ${dates[0] || '—'} ~ ${dates[dates.length - 1] || '—'} 的记录`
+                        : multi
+                            ? `数据自 2023-08-25 起收录 · 已选 ${selectedDates.size} 天，仅查询所选日期`
+                            : '数据自 2023-08-25 起收录 · 仅查询指定日期'
                 markSelectedDates()
             }
 
@@ -611,7 +748,7 @@
             }
 
             function markSelectedDates() {
-                const show = el.mode.value === 'date'
+                const show = el.mode.value !== 'latest'
                 for (const cell of el.calendarGrid.querySelectorAll('.calendar-day')) {
                     const selected = show && selectedDates.has(cell.dataset.date)
                     cell.classList.toggle('selected', selected)
@@ -623,16 +760,20 @@
                 el.date.value = selectedDates.size === 1 ? [...selectedDates][0] : ''
             }
 
+            function commitSelection(query = true) {
+                syncDateValue()
+                syncSelectionMode()
+                updateModeFields()
+                if (query) runQuery({ push: true })
+            }
+
             function calendarDates() {
                 return [...el.calendarGrid.querySelectorAll('.calendar-day')].map((cell) => cell.dataset.date)
             }
 
             function applyCalendarSelection(dates) {
-                el.mode.value = 'date'
                 selectedDates = new Set(dates)
-                syncDateValue()
-                updateModeFields()
-                runQuery({ push: true })
+                commitSelection()
             }
 
             function selectAllCalendarDates() {
@@ -647,10 +788,8 @@
             }
 
             function clearCalendarDates() {
-                if (el.mode.value === 'latest') el.mode.value = 'date'
                 selectedDates = new Set()
-                syncDateValue()
-                updateModeFields()
+                commitSelection(false)
                 syncUrl('push')
                 requestSeq++
                 setLoading(false)
@@ -665,16 +804,13 @@
 
             function selectCalendarDate(date) {
                 if (el.mode.value === 'latest') {
-                    el.mode.value = 'date'
                     selectedDates = new Set([date])
                 } else if (selectedDates.has(date)) {
                     selectedDates.delete(date)
                 } else {
                     selectedDates.add(date)
                 }
-                syncDateValue()
-                updateModeFields()
-                runQuery({ push: true })
+                commitSelection()
             }
 
             function calendarCellAt(x, y) {
@@ -701,8 +837,7 @@
                     changed = true
                 }
                 if (!changed) return
-                syncDateValue()
-                updateModeFields()
+                commitSelection(false)
             }
 
             function moveCalendarDrag(event) {
@@ -713,10 +848,7 @@
                 if (!calendarDrag.moved) {
                     if (date === calendarDrag.lastDate) return
                     calendarDrag.moved = true
-                    if (el.mode.value === 'latest') {
-                        el.mode.value = 'date'
-                        selectedDates = new Set()
-                    }
+                    if (el.mode.value === 'latest') selectedDates = new Set()
                 }
                 applyDragDates(calendarDrag.lastDate, date)
                 calendarDrag.lastDate = date
@@ -744,10 +876,9 @@
                 if (!cell) return
                 stopCalendarDrag()
                 const date = cell.dataset.date
-                const active = el.mode.value === 'date'
+                const deselect = el.mode.value !== 'latest' && selectedDates.has(date)
                 calendarDrag = {
-                    mode: active && selectedDates.has(date) ? 'deselect' : 'select',
-                    startDate: date,
+                    mode: deselect ? 'deselect' : 'select',
                     lastDate: date,
                     moved: false,
                     applied: new Set(),
@@ -788,14 +919,11 @@
                         month.textContent = `${cursor.getMonth() + 1}月`
                         cell.appendChild(month)
                     }
-                    if (el.mode.value === 'date' && selectedDates.has(text)) {
-                        cell.classList.add('selected')
-                        cell.setAttribute('aria-pressed', 'true')
-                    }
                     fragment.appendChild(cell)
                     cursor.setDate(cursor.getDate() + 1)
                 }
                 el.calendarGrid.appendChild(fragment)
+                markSelectedDates()
                 el.calendarGrid.scrollLeft = el.calendarGrid.scrollWidth
             }
 
@@ -839,6 +967,7 @@
                 setLoading(false)
                 el.form.reset()
                 setDefaultDate()
+                resetRangeValues()
                 updateModeFields()
                 syncSelects('type')
                 syncUrl('push')
@@ -855,13 +984,21 @@
                     showMessage('请选择名称和位置', 'empty')
                     return
                 }
-                const mode = el.mode.value === 'latest' ? 'latest' : 'date'
+                const mode = el.mode.value
                 if (mode === 'date' && selectedDates.size === 0) {
                     requestSeq++
                     setLoading(false)
                     el.meta.textContent = '请选择日期'
                     showMessage('请选择日期', 'empty')
                     toast('请选择日期', 'error')
+                    return
+                }
+                if (mode === 'range' && selectedDates.size === 0) {
+                    requestSeq++
+                    setLoading(false)
+                    el.meta.textContent = '请选择日期范围'
+                    showMessage('请选择日期范围', 'empty')
+                    toast('请选择日期范围', 'error')
                     return
                 }
                 const limit = Math.min(Math.max(Number(el.limit.value) || 50, 10), 1000)
@@ -885,6 +1022,19 @@
                         if (seq !== requestSeq) return
                         rows = result.rows || []
                         el.meta.textContent = `${el.name.value} · ${el.location.value} · 最近 ${limit} 条 · 共 ${rows.length} 条`
+                    } else if (mode === 'range') {
+                        const dates = [...selectedDates].sort()
+                        const start = dates[0]
+                        const end = dates[dates.length - 1]
+                        rows = await post('nuclear_data', {
+                            type: el.type.value,
+                            name: el.name.value,
+                            location: el.location.value,
+                            dateStart: start,
+                            dateEnd: end,
+                        })
+                        if (seq !== requestSeq) return
+                        el.meta.textContent = `${el.name.value} · ${el.location.value} · ${start} ~ ${end} · 共 ${rows.length} 条`
                     } else if (selectedDates.size > 1) {
                         const dates = [...selectedDates].sort()
                         const result = await post('nuclear_data/list', {
@@ -901,14 +1051,15 @@
                         rows = result.rows || []
                         el.meta.textContent = `${el.name.value} · ${el.location.value} · 已选 ${dates.length} 天 · 共 ${rows.length} 条`
                     } else {
+                        const date = [...selectedDates][0]
                         rows = await post('nuclear_data', {
                             type: el.type.value,
                             name: el.name.value,
                             location: el.location.value,
-                            date: el.date.value,
+                            date,
                         })
                         if (seq !== requestSeq) return
-                        el.meta.textContent = `${el.name.value} · ${el.location.value} · ${el.date.value} 及前 3 天 · 共 ${rows.length} 条`
+                        el.meta.textContent = `${el.name.value} · ${el.location.value} · ${date} · 共 ${rows.length} 条`
                     }
 
                     if (!rows.length) {
@@ -944,6 +1095,38 @@
             })
 
             el.mode.addEventListener('change', () => {
+                const mode = el.mode.value
+                if (mode === 'latest') {
+                    updateModeFields()
+                    runQuery({ push: true })
+                    return
+                }
+                const dates = [...selectedDates].sort()
+                if (mode === 'range') {
+                    let start
+                    let end
+                    if (!dates.length) {
+                        const range = defaultRange()
+                        start = range.start
+                        end = range.end
+                    } else {
+                        end = dates[dates.length - 1]
+                        start = dates[0]
+                        if (dates.length === 1) {
+                            const cursor = new Date(`${end}T00:00:00`)
+                            cursor.setDate(cursor.getDate() - 6)
+                            const startText = dateString(cursor)
+                            start = startText < MIN_DATE ? MIN_DATE : startText
+                        }
+                    }
+                    selectedDates = new Set(rangeDates(start, end))
+                    el.rangeStart.value = start
+                    el.rangeEnd.value = end
+                    syncDateValue()
+                } else if (dates.length) {
+                    selectedDates = new Set([dates[dates.length - 1]])
+                    syncDateValue()
+                }
                 updateModeFields()
                 runQuery({ push: true })
             })
@@ -952,9 +1135,25 @@
 
             el.date.addEventListener('change', () => {
                 selectedDates = el.date.value ? new Set([el.date.value]) : new Set()
+                syncDateValue()
+                syncSelectionMode()
                 updateModeFields()
                 runQuery({ push: true })
             })
+
+            function onRangeChange(event) {
+                if (el.rangeStart.value > el.rangeEnd.value) {
+                    if (event.target === el.rangeStart) el.rangeEnd.value = el.rangeStart.value
+                    else el.rangeStart.value = el.rangeEnd.value
+                }
+                selectedDates = new Set(rangeDates(el.rangeStart.value, el.rangeEnd.value))
+                syncDateValue()
+                updateModeFields()
+                runQuery({ push: true })
+            }
+
+            el.rangeStart.addEventListener('change', onRangeChange)
+            el.rangeEnd.addEventListener('change', onRangeChange)
 
             el.calendarSelectAll.addEventListener('click', selectAllCalendarDates)
             el.calendarInvert.addEventListener('click', invertCalendarDates)
@@ -978,6 +1177,7 @@
 
             async function init() {
                 setDefaultDate()
+                fillRangeOptions()
                 updateModeFields()
                 await loadOptionsTree()
                 syncSelects('type')
