@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>辐射环境监测数据 · 数据曲线</title>
+    <link rel="stylesheet" href="./common.css">
+    <script src="./layout.js" defer></script>
+    <style>
+        .chart-card {
+            margin-top: 16px;
+            padding: 18px;
+        }
+
+        .chart-head {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .chart-head h2 {
+            margin: 0;
+            font-size: 15px;
+            font-weight: 600;
+        }
+
+        .chart-summary {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px 24px;
+            margin-top: 14px;
+        }
+
+        .chart-box {
+            position: relative;
+            height: 360px;
+            margin-top: 10px;
+        }
+
+        .chart-box svg {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        .chart-empty {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0 24px;
+            color: var(--muted);
+            font-size: 13px;
+            text-align: center;
+        }
+
+        .chart-tip {
+            position: absolute;
+            z-index: 2;
+            padding: 6px 10px;
+            border-radius: 6px;
+            background: #1e293b;
+            color: #fff;
+            font-size: 12px;
+            line-height: 1.4;
+            white-space: nowrap;
+            pointer-events: none;
+            opacity: 0;
+            transform: translate(-50%, -100%);
+            transition: opacity .12s;
+        }
+
+        .chart-tip.show {
+            opacity: 1;
+        }
+
+        .chart-tip b {
+            display: block;
+            font-size: 13px;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .chart-tip span {
+            color: #cbd5e1;
+        }
+
+        @media (max-width: 720px) {
+            .chart-box {
+                height: 300px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <header id="site-nav" class="topbar"></header>
+
+    <main class="wrap">
+        <form id="filter-form" class="card filter-card" autocomplete="off">
+            <div class="filter-grid">
+                <label class="field">监测点类型
+                    <select id="f-type">
+                        <option value="">全部类型</option>
+                        <option value="0">环境质量监测点</option>
+                        <option value="1">核电厂监测点</option>
+                    </select>
+                </label>
+                <label class="field">名称
+                    <select id="f-name">
+                        <option value="">请选择名称</option>
+                    </select>
+                </label>
+                <label class="field">位置
+                    <select id="f-location">
+                        <option value="">请选择位置</option>
+                    </select>
+                </label>
+                <label class="field">时间方式
+                    <select id="f-mode">
+                        <option value="latest">最近 N 条</option>
+                        <option value="range">日期范围</option>
+                    </select>
+                </label>
+                <label class="field" id="f-limit-field">最近条数
+                    <select id="f-limit">
+                        <option value="20">20 条</option>
+                        <option value="50" selected>50 条</option>
+                        <option value="100">100 条</option>
+                        <option value="200">200 条</option>
+                        <option value="500">500 条</option>
+                    </select>
+                </label>
+                <label class="field" id="f-date-start-field" hidden>开始日期
+                    <input type="date" id="f-date-start">
+                </label>
+                <label class="field" id="f-date-end-field" hidden>结束日期
+                    <input type="date" id="f-date-end">
+                </label>
+            </div>
+            <div class="filter-foot">
+                <p class="meta">选择名称和位置后自动绘制曲线；曲线在数据缺口处断开。</p>
+                <div class="actions">
+                    <button type="submit" id="btn-query" class="btn primary">查询</button>
+                </div>
+            </div>
+        </form>
+
+        <section class="card chart-card">
+            <div class="chart-head">
+                <div>
+                    <h2>辐射剂量率曲线</h2>
+                    <p class="meta" id="chart-meta">选择具体测点后显示</p>
+                </div>
+            </div>
+            <div class="chart-summary" id="chart-summary"></div>
+            <div class="chart-box" id="chart-box">
+                <div class="chart-empty" id="chart-empty">选择名称和位置后显示曲线</div>
+                <div class="chart-tip" id="chart-tip"><b></b><span></span></div>
+            </div>
+        </section>
+    </main>
+
+    <footer id="site-footer" class="footer"></footer>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+    <script>
+        (function () {
+            'use strict'
+
+            const API_BASE = (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
+                ? 'http://localhost:35590/'
+                : '/api/'
+
+            const SVG_NS = 'http://www.w3.org/2000/svg'
+            const DAY = 24 * 3600 * 1000
+
+            const $ = (id) => document.getElementById(id)
+
+            const el = {
+                form: $('filter-form'),
+                type: $('f-type'),
+                name: $('f-name'),
+                location: $('f-location'),
+                mode: $('f-mode'),
+                limit: $('f-limit'),
+                limitField: $('f-limit-field'),
+                dateStart: $('f-date-start'),
+                dateEnd: $('f-date-end'),
+                dateStartField: $('f-date-start-field'),
+                dateEndField: $('f-date-end-field'),
+                queryBtn: $('btn-query'),
+                meta: $('chart-meta'),
+                summary: $('chart-summary'),
+                box: $('chart-box'),
+                empty: $('chart-empty'),
+                tip: $('chart-tip'),
+                toast: $('toast'),
+            }
+
+            let optionsTree = []
+            let requestSeq = 0
+            let toastTimer = null
+            let current = null
+
+            const collator = new Intl.Collator('zh-Hans-CN')
+
+            async function request(path, options) {
+                const response = await fetch(API_BASE + path, options)
+                if (!response.ok) {
+                    const text = await response.text().catch(() => '')
+                    throw new Error(text || `请求失败（HTTP ${response.status}）`)
+                }
+                return response.json()
+            }
+
+            function post(path, data) {
+                return request(path, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data),
+                })
+            }
+
+            function pad2(value) {
+                return String(value).padStart(2, '0')
+            }
+
+            function dateString(date) {
+                return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`
+            }
+
+            function defaultDateRange() {
+                const end = new Date()
+                const start = new Date(end.getTime() - 29 * DAY)
+                return { start: dateString(start), end: dateString(end) }
+            }
+
+            function toast(message, kind) {
+                el.toast.textContent = message
+                el.toast.className = 'toast show' + (kind === 'error' ? ' error' : '')
+                clearTimeout(toastTimer)
+                toastTimer = setTimeout(() => {
+                    el.toast.className = 'toast'
+                }, 3200)
+            }
+
+            function fillSelect(select, values, keep) {
+                const first = select.options[0]
+                select.replaceChildren(first)
+                for (const value of values) {
+                    select.add(new Option(value, value))
+                }
+                select.value = values.includes(keep) ? keep : ''
+            }
+
+            function namesFor(type) {
+                const names = new Set()
+                for (const item of optionsTree) {
+                    if (!type || item.type === type) names.add(item.name)
+                }
+                return [...names].sort(collator.compare)
+            }
+
+            function locationsFor(type, name) {
+                const locations = new Set()
+                for (const item of optionsTree) {
+                    if (type && item.type !== type) continue
+                    if (name && item.name !== name) continue
+                    for (const location of item.locations) locations.add(location)
+                }
+                return [...locations].sort(collator.compare)
+            }
+
+            async function loadOptionsTree() {
+                try {
+                    optionsTree = await request('nuclear_data/options/tree')
+                } catch (error) {
+                    optionsTree = []
+                    toast('测点选项加载失败', 'error')
+                }
+            }
+
+            // 选择下级时反推名称/类型，选择上级时过滤下级
+            function syncSelects(source) {
+                if (source === 'name' && el.name.value) {
+                    const owner = optionsTree.find((item) => item.name === el.name.value)
+                    if (owner) el.type.value = owner.type
+                }
+                if (source === 'location' && el.location.value) {
+                    const owner = optionsTree.find((item) => item.locations.includes(el.location.value))
+                    if (owner && !el.name.value) {
+                        el.name.value = owner.name
+                        el.type.value = owner.type
+                    }
+                }
+                fillSelect(el.name, namesFor(el.type.value), el.name.value)
+                fillSelect(el.location, locationsFor(el.type.value, el.name.value), el.location.value)
+            }
+
+            function updateModeFields() {
+                const range = el.mode.value === 'range'
+                el.limitField.hidden = range
+                el.dateStartField.hidden = !range
+                el.dateEndField.hidden = !range
+            }
+
+            function parseValue(raw) {
+                const match = /^\s*(-?\d+(?:\.\d+)?)\s*(.*)$/.exec(raw || '')
+                if (!match) return null
+                const value = Number(match[1])
+                if (!Number.isFinite(value)) return null
+                return { value, unit: match[2] || '' }
+            }
+
+            function stat(label, value) {
+                const box = document.createElement('div')
+                box.className = 'stat'
+                const strong = document.createElement('b')
+                strong.textContent = value
+                const span = document.createElement('span')
+                span.textContent = label
+                box.append(strong, span)
+                return box
+            }
+
+            function clearChart(message) {
+                current = null
+                for (const svg of el.box.querySelectorAll('svg')) svg.remove()
+                el.summary.replaceChildren()
+                el.tip.className = 'chart-tip'
+                el.empty.hidden = false
+                el.empty.textContent = message
+            }
+
+            function renderSummary(points, unit) {
+                const values = points.map((point) => point.value)
+                const latest = points[points.length - 1]
+                const sum = values.reduce((total, value) => total + value, 0)
+                const average = values.length ? sum / values.length : 0
+                el.summary.replaceChildren(
+                    stat('数据点', String(points.length)),
+                    stat(`最新 · ${latest.date}`, `${formatNumber(latest.value)} ${unit}`.trim()),
+                    stat('最高', `${formatNumber(Math.max(...values))} ${unit}`.trim()),
+                    stat('最低', `${formatNumber(Math.min(...values))} ${unit}`.trim()),
+                    stat('平均', `${formatNumber(average, 1)} ${unit}`.trim())
+                )
+            }
+
+            function formatNumber(value, decimals) {
+                const digits = decimals === undefined ? 1 : decimals
+                const rounded = Number(value.toFixed(digits))
+                return String(rounded)
+            }
+
+            function niceStep(range, count) {
+                const raw = range / Math.max(1, count)
+                if (!Number.isFinite(raw) || raw <= 0) return 1
+                const power = Math.pow(10, Math.floor(Math.log10(raw)))
+                const norm = raw / power
+                const step = norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10
+                return step * power
+            }
+
+            function svgNode(tag, attrs, text) {
+                const node = document.createElementNS(SVG_NS, tag)
+                for (const key in attrs || {}) {
+                    node.setAttribute(key, attrs[key])
+                }
+                if (text !== undefined) node.textContent = text
+                return node
+            }
+
+            function drawChart(points, unit) {
+                for (const svg of el.box.querySelectorAll('svg')) svg.remove()
+                el.empty.hidden = true
+                el.tip.className = 'chart-tip'
+
+                const width = el.box.clientWidth
+                const height = el.box.clientHeight
+                if (!width || !height || !points.length) return
+
+                const pad = { top: 18, right: 18, bottom: 34, left: 56 }
+                const plotWidth = Math.max(10, width - pad.left - pad.right)
+                const plotHeight = Math.max(10, height - pad.top - pad.bottom)
+
+                const times = points.map((point) => Date.parse(point.date + 'T00:00:00Z'))
+                const minTime = times[0]
+                const maxTime = times[times.length - 1]
+                const span = maxTime - minTime || 1
+                const xOf = (time) => points.length === 1
+                    ? pad.left + plotWidth / 2
+                    : pad.left + ((time - minTime) / span) * plotWidth
+
+                const values = points.map((point) => point.value)
+                const minValue = Math.min(...values)
+                const maxValue = Math.max(...values)
+                const step = niceStep(Math.max(maxValue - minValue, 1), 5)
+                let yMin = Math.floor((minValue - step * 0.5) / step) * step
+                let yMax = Math.ceil((maxValue + step * 0.5) / step) * step
+                yMin = Math.max(0, yMin)
+                if (yMax <= yMin) yMax = yMin + step
+                const yOf = (value) => pad.top + plotHeight - ((value - yMin) / (yMax - yMin)) * plotHeight
+
+                const svg = svgNode('svg', {
+                    width,
+                    height,
+                    viewBox: `0 0 ${width} ${height}`,
+                    role: 'img',
+                    'aria-label': '辐射剂量率折线图',
+                })
+
+                const tickDecimals = step < 1 ? Math.min(2, Math.ceil(-Math.log10(step))) : 0
+                for (let value = yMin; value <= yMax + step / 2; value += step) {
+                    const y = yOf(value)
+                    svg.appendChild(svgNode('line', {
+                        x1: pad.left,
+                        y1: y,
+                        x2: pad.left + plotWidth,
+                        y2: y,
+                        stroke: '#eef1f6',
+                        'stroke-width': 1,
+                    }))
+                    svg.appendChild(svgNode('text', {
+                        x: pad.left - 8,
+                        y: y + 4,
+                        'text-anchor': 'end',
+                        'font-size': 11,
+                        fill: '#94a3b8',
+                    }, value.toFixed(tickDecimals)))
+                }
+
+                const labelStep = Math.max(1, Math.ceil(points.length / Math.max(2, Math.floor(plotWidth / 76))))
+                const labelIndices = []
+                let lastLabelX = -Infinity
+                for (let index = 0; index < points.length; index += labelStep) {
+                    const x = xOf(times[index])
+                    if (x - lastLabelX >= 52) {
+                        labelIndices.push(index)
+                        lastLabelX = x
+                    }
+                }
+                const lastIndex = points.length - 1
+                if (!labelIndices.includes(lastIndex) && xOf(times[lastIndex]) - lastLabelX >= 40) {
+                    labelIndices.push(lastIndex)
+                }
+                for (const index of labelIndices) {
+                    svg.appendChild(svgNode('text', {
+                        x: xOf(times[index]),
+                        y: pad.top + plotHeight + 18,
+                        'text-anchor': 'middle',
+                        'font-size': 11,
+                        fill: '#94a3b8',
+                    }, points[index].date.slice(5)))
+                }
+
+                const coords = points.map((point, index) => ({
+                    point,
+                    x: xOf(times[index]),
+                    y: yOf(point.value),
+                }))
+
+                const segments = []
+                let segment = []
+                for (let index = 0; index < coords.length; index++) {
+                    if (index > 0 && times[index] - times[index - 1] > DAY * 1.5) {
+                        segments.push(segment)
+                        segment = []
+                    }
+                    segment.push(coords[index])
+                }
+                segments.push(segment)
+
+                for (const part of segments) {
+                    if (part.length < 2) continue
+                    svg.appendChild(svgNode('polyline', {
+                        points: part.map((item) => `${item.x},${item.y}`).join(' '),
+                        fill: 'none',
+                        stroke: '#2563eb',
+                        'stroke-width': 2,
+                        'stroke-linejoin': 'round',
+                        'stroke-linecap': 'round',
+                    }))
+                }
+
+                const radius = points.length > 300 ? 1.6 : points.length > 120 ? 2 : 2.6
+                for (const item of coords) {
+                    svg.appendChild(svgNode('circle', {
+                        cx: item.x,
+                        cy: item.y,
+                        r: radius,
+                        fill: '#2563eb',
+                        stroke: '#fff',
+                        'stroke-width': 1,
+                    }))
+                }
+
+                const guide = svgNode('line', {
+                    y1: pad.top,
+                    y2: pad.top + plotHeight,
+                    stroke: '#94a3b8',
+                    'stroke-width': 1,
+                    'stroke-dasharray': '4 4',
+                    visibility: 'hidden',
+                })
+                const focus = svgNode('circle', {
+                    r: 4,
+                    fill: '#fff',
+                    stroke: '#2563eb',
+                    'stroke-width': 2,
+                    visibility: 'hidden',
+                })
+                svg.append(guide, focus)
+
+                function hideTip() {
+                    guide.setAttribute('visibility', 'hidden')
+                    focus.setAttribute('visibility', 'hidden')
+                    el.tip.className = 'chart-tip'
+                }
+
+                svg.addEventListener('pointermove', (event) => {
+                    const rect = svg.getBoundingClientRect()
+                    const pointerX = event.clientX - rect.left
+                    if (pointerX < pad.left - 12 || pointerX > pad.left + plotWidth + 12) {
+                        hideTip()
+                        return
+                    }
+                    let nearest = coords[0]
+                    let distance = Math.abs(coords[0].x - pointerX)
+                    for (const item of coords) {
+                        const next = Math.abs(item.x - pointerX)
+                        if (next < distance) {
+                            nearest = item
+                            distance = next
+                        }
+                    }
+                    guide.setAttribute('x1', nearest.x)
+                    guide.setAttribute('x2', nearest.x)
+                    guide.setAttribute('visibility', 'visible')
+                    focus.setAttribute('cx', nearest.x)
+                    focus.setAttribute('cy', nearest.y)
+                    focus.setAttribute('visibility', 'visible')
+
+                    const tipValue = el.tip.querySelector('b')
+                    const tipDate = el.tip.querySelector('span')
+                    tipValue.textContent = `${formatNumber(nearest.point.value)} ${unit}`.trim()
+                    tipDate.textContent = nearest.point.date
+                    el.tip.className = 'chart-tip show'
+                    el.tip.style.left = Math.min(Math.max(nearest.x, 66), width - 66) + 'px'
+                    el.tip.style.top = Math.max(nearest.y - 12, 44) + 'px'
+                })
+
+                svg.addEventListener('pointerleave', hideTip)
+
+                el.box.appendChild(svg)
+            }
+
+            function collectParams() {
+                const mode = el.mode.value === 'range' ? 'range' : 'latest'
+                const params = {
+                    type: el.type.value,
+                    name: el.name.value,
+                    location: el.location.value,
+                    mode,
+                }
+                if (mode === 'range') {
+                    params.dateStart = el.dateStart.value
+                    params.dateEnd = el.dateEnd.value
+                } else {
+                    params.limit = Number(el.limit.value) || 50
+                }
+                return params
+            }
+
+            function setLoading(busy) {
+                el.queryBtn.disabled = busy
+                el.queryBtn.textContent = busy ? '查询中…' : '查询'
+            }
+
+            async function loadSeries() {
+                if (!el.name.value || !el.location.value) {
+                    current = null
+                    el.meta.textContent = '选择名称和位置后显示'
+                    clearChart('选择名称和位置后显示曲线')
+                    return
+                }
+
+                const params = collectParams()
+                if (params.mode === 'range') {
+                    if (!params.dateStart || !params.dateEnd) {
+                        toast('请选择完整的日期范围', 'error')
+                        return
+                    }
+                    if (params.dateStart > params.dateEnd) {
+                        toast('开始日期不能晚于结束日期', 'error')
+                        return
+                    }
+                }
+
+                const seq = ++requestSeq
+                setLoading(true)
+                current = null
+                el.meta.textContent = '加载中…'
+                clearChart('加载中…')
+
+                try {
+                    const result = await post('nuclear_data/series', params)
+                    if (seq !== requestSeq) return
+
+                    const parsed = []
+                    for (const row of result.rows || []) {
+                        const value = parseValue(row.value)
+                        if (value) parsed.push({ date: row.date, value: value.value, unit: value.unit })
+                    }
+                    if (!parsed.length) {
+                        el.meta.textContent = '该条件下没有可用数据'
+                        clearChart('该条件下没有可用数据')
+                        return
+                    }
+
+                    const unit = parsed.find((item) => item.unit)?.unit || 'nGy/h'
+                    const firstDate = parsed[0].date
+                    const lastDate = parsed[parsed.length - 1].date
+                    const modeText = params.mode === 'range'
+                        ? `${firstDate} ~ ${lastDate}`
+                        : `最近 ${params.limit} 条`
+                    el.meta.textContent = `${el.name.value} · ${el.location.value} · 共 ${parsed.length} 个数据点 · ${modeText} · 单位 ${unit}`
+                    renderSummary(parsed, unit)
+                    current = { points: parsed, unit }
+                    drawChart(parsed, unit)
+                } catch (error) {
+                    if (seq !== requestSeq) return
+                    el.meta.textContent = '加载失败'
+                    clearChart(error.message || '加载失败')
+                } finally {
+                    if (seq === requestSeq) setLoading(false)
+                }
+            }
+
+            el.type.addEventListener('change', () => {
+                syncSelects('type')
+                loadSeries()
+            })
+
+            el.name.addEventListener('change', () => {
+                syncSelects('name')
+                loadSeries()
+            })
+
+            el.location.addEventListener('change', () => {
+                syncSelects('location')
+                loadSeries()
+            })
+
+            el.mode.addEventListener('change', () => {
+                updateModeFields()
+                loadSeries()
+            })
+
+            el.limit.addEventListener('change', loadSeries)
+            el.dateStart.addEventListener('change', loadSeries)
+            el.dateEnd.addEventListener('change', loadSeries)
+
+            el.form.addEventListener('submit', (event) => {
+                event.preventDefault()
+                loadSeries()
+            })
+
+            window.addEventListener('resize', () => {
+                if (current) drawChart(current.points, current.unit)
+            })
+
+            async function init() {
+                const range = defaultDateRange()
+                el.dateStart.value = range.start
+                el.dateEnd.value = range.end
+                updateModeFields()
+                await loadOptionsTree()
+                syncSelects('type')
+                clearChart('选择名称和位置后显示曲线')
+            }
+
+            init()
+        })()
+    </script>
+</body>
+
+</html>

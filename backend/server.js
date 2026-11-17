@@ -373,6 +373,62 @@ app.post('/nuclear_data/list', function (req, res) {
     });
 });
 
+// 单测点时间序列（曲线图）
+app.post('/nuclear_data/series', function (req, res) {
+    const body = req.body || {};
+
+    const name = typeof body.name === 'string' ? body.name.trim() : '';
+    const location = typeof body.location === 'string' ? body.location.trim() : '';
+    if (!name || !location) {
+        res.status(400).send('请选择名称和位置');
+        return;
+    }
+
+    const type = body.type === '0' || body.type === '1' ? body.type : null;
+    const mode = body.mode === 'range' ? 'range' : 'latest';
+    const dateStart = isValidDateStr(body.dateStart) ? body.dateStart : null;
+    const dateEnd = isValidDateStr(body.dateEnd) ? body.dateEnd : null;
+    if (mode === 'range' && dateStart && dateEnd && dateStart > dateEnd) {
+        res.status(400).send('日期范围不合法');
+        return;
+    }
+
+    let limit = parseInt(body.limit, 10);
+    if (!Number.isFinite(limit)) limit = 50;
+    limit = Math.min(Math.max(limit, 1), 2000);
+
+    const where = ['name = ?', 'location = ?'];
+    const params = [name, location];
+    if (type) {
+        where.push('type = ?');
+        params.push(type);
+    }
+    if (dateStart) {
+        where.push('date >= ?');
+        params.push(dateStart);
+    }
+    if (dateEnd) {
+        where.push('date <= ?');
+        params.push(dateEnd);
+    }
+
+    const order = mode === 'range' ? 'ASC' : 'DESC';
+    const sql = `SELECT DATE_FORMAT(date, '%Y-%m-%d') AS date, value
+                 FROM nuclear_data
+                 WHERE ${where.join(' AND ')}
+                 ORDER BY date ${order}
+                 LIMIT ${limit}`;
+    pool.query(sql, params, function (err, rows) {
+        if (err) {
+            console.error(err);
+            res.status(500).send('服务器错误');
+            return;
+        }
+        if (mode === 'latest') rows.reverse();
+        res.json({ mode, rows });
+    });
+});
+
 // 数据概览
 app.get('/nuclear_data/stats', function (req, res) {
     const sql = `SELECT COUNT(*) AS total,

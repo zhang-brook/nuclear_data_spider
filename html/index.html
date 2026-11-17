@@ -1,211 +1,353 @@
-<html>
+<!DOCTYPE html>
+<html lang="zh-CN">
 
 <head>
     <meta charset="utf-8">
-    <title>辐射环境历史数据查询</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>辐射环境监测数据 · 基础查询</title>
+    <link rel="stylesheet" href="./common.css">
+    <script src="./layout.js" defer></script>
+    <style>
+        .result-card table {
+            min-width: 560px;
+        }
+    </style>
 </head>
 
 <body>
-    <h1>辐射环境历史数据查询</h1>
-    <p>可查询自 2023-08-25 起的国家核安全局辐射环境监测数据历史数据</p>
-    <p><a href="./query.html">进入多条件查询（列表模式）→</a></p>
-    <hr>
-    <form id="form">
-        <label for="type">监测点：</label>
-        <select id="type" name="type" required>
-            <option value="0">环境质量监测点</option>
-            <option value="1">核电厂监测点</option>
-        </select><br>
+    <header id="site-nav" class="topbar"></header>
 
-        <label for="name">名称：</label>
-        <select id="name" name="name" required></select><br>
+    <main class="wrap">
+        <form id="form" class="card filter-card" autocomplete="off">
+            <div class="filter-grid">
+                <label class="field">监测点类型
+                    <select id="type" name="type">
+                        <option value="">全部类型</option>
+                        <option value="0">环境质量监测点</option>
+                        <option value="1">核电厂监测点</option>
+                    </select>
+                </label>
+                <label class="field">名称
+                    <select id="name" name="name" required>
+                        <option value="">请选择名称</option>
+                    </select>
+                </label>
+                <label class="field">位置
+                    <select id="location" name="location" required>
+                        <option value="">请选择位置</option>
+                    </select>
+                </label>
+                <label class="field">日期
+                    <input type="date" id="date" name="date" required min="2023-08-25">
+                </label>
+            </div>
+            <div class="filter-foot">
+                <p class="meta">数据自 2023-08-25 起收录 · 展示所选日期及前 3 天的记录</p>
+                <div class="actions">
+                    <button type="submit" id="submit-btn" class="btn primary">查询</button>
+                </div>
+            </div>
+        </form>
 
-        <label for="location">位置：</label>
-        <select id="location" name="location" required></select><br>
+        <section class="card result-card">
+            <div class="result-head">
+                <div>
+                    <h2>查询结果</h2>
+                    <p class="meta" id="result-meta">选择监测点后查询</p>
+                </div>
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>日期</th>
+                            <th>数值</th>
+                            <th>类型</th>
+                            <th>数据更新时间</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbody"></tbody>
+                </table>
+            </div>
+        </section>
+    </main>
 
-        <label for="date">日期：</label>
-        <input type="date" id="date" name="date" required min="2023-08-25"><br>
-        <button type="submit" id="submit-btn">查询</button>
-    </form>
-    <hr>
+    <footer id="site-footer" class="footer"></footer>
 
-    <div id="result"></div>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-    <div class="footer">
-        <p>
-            开放接口：按月批量查询所有点位数据接口<br>
-
-            备注：目前数据较少。
-        </p>
-        <p>
-            开源项目：本项目由程序员小墨开发并开源，仅作学习研究使用。<br>
-            <a target="_blank" rel="noopener" href="https://github.com/zhang-brook/nuclear_data_spider">GitHub</a>
-            <a target="_blank" rel="noopener" href="https://gitee.com/zhang-brook/nuclear_data_spider">Gitee</a>
-            <!--
-            <a target="_blank" rel="noopener" href="https://git.only4.work/zhang-brook/nuclear_data_spider">自建仓库</a>
-            -->
-        </p>
-        <p>
-            特别说明：请勿使用爬虫爬取本站接口，感谢！如需全部历史数据，请<a href="https://www.only4.work/about/feedback/"
-                target="_blank">点击留言</a>，我会尽量在当日将数据打包发送回您的邮箱。
-        </p>
-        <p>
-
-        </p>
-        <p>
-            数据来源：<a href="https://nnsa.mee.gov.cn/" target="_blank">国家核安全局</a>
-            -
-            <a href="https://data.rmtc.org.cn/gis" target="_blank">辐射环境监测数据</a>
-        </p>
-        <p>
-            免责声明：本站仅记录自 2023-08-25 起的辐射环境监测数据历史值，不对数据来源真实性做保证，数据使用权请查阅上方数据来源自行获取，仅通过技术层面保存监测数据历史记录，方便学术研究使用。
-        </p>
-    </div>
-    <script src="./jquery.min.js"></script>
-    <!-- <script src="https://cdn.bootcdn.net/ajax/libs/jquery/3.6.0/jquery.min.js"></script> -->
     <script>
-        const host = location.host.includes('localhost') || location.host.includes('127.0.0.1')
-            ? 'http://localhost:35590/'
-            : '/api/'
-        console.log('host', host)
+        (function () {
+            'use strict'
 
-        function setDefalutValue() {
-            // 日期当前值 2天前
-            var today = new Date(Date.now() - 2 * 24 * 3600 * 1000); // 获取当前的日期对象
-            var day = today.getDate(); // 获取当前的日
-            var month = today.getMonth() + 1; // 获取当前的月，需要加1
-            var year = today.getFullYear(); // 获取当前的年
-            if (day < 10) { // 如果日小于10，前面补0
-                day = "0" + day;
+            const API_BASE = (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
+                ? 'http://localhost:35590/'
+                : '/api/'
+
+            const $ = (id) => document.getElementById(id)
+
+            const el = {
+                form: $('form'),
+                type: $('type'),
+                name: $('name'),
+                location: $('location'),
+                date: $('date'),
+                submitBtn: $('submit-btn'),
+                meta: $('result-meta'),
+                tbody: $('tbody'),
+                toast: $('toast'),
             }
-            if (month < 10) { // 如果月小于10，前面补0
-                month = "0" + month;
-            }
-            var date = year + "-" + month + "-" + day; // 拼接成 yyyy-MM-dd 格式的字符串
-            document.getElementById("date").value = date; // 将字符串赋值给日期输入框
 
-            // 日期最大值 1天前
-            var today = new Date(Date.now() - 24 * 3600 * 1000); // 获取当前的日期对象
-            var day = today.getDate(); // 获取当前的日
-            var month = today.getMonth() + 1; // 获取当前的月，需要加1
-            var year = today.getFullYear(); // 获取当前的年
-            if (day < 10) { // 如果日小于10，前面补0
-                day = "0" + day;
-            }
-            if (month < 10) { // 如果月小于10，前面补0
-                month = "0" + month;
-            }
-            var date = year + "-" + month + "-" + day; // 拼接成 yyyy-MM-dd 格式的字符串
-            document.getElementById("date").max = date; // 将字符串赋值给日期输入框
-        }
+            let optionsTree = []
+            let requestSeq = 0
+            let toastTimer = null
 
-        // // 在页面加载时发送get请求，获取所有的名称和位置，并填充到下拉框中
-        // $(document).ready(function () {
-        //     $.get(host + 'nuclear_data/options', function (res) {
-        //         // 遍历返回的数组，将每个名称和位置添加到对应的下拉框中
-        //         for (let item of res) {
-        //             $('#name').append(`<option value="${item.name}">${item.name}</option>`);
-        //             $('#location').append(`<option value="${item.location}">${item.location}</option>`);
-        //         }
-        //     });
-        // });
+            const collator = new Intl.Collator('zh-Hans-CN')
 
-        // // 在页面加载时发送get请求，获取所有的名称，并填充到名称的下拉框中
-        // $(document).ready(function () {
-        //     $.get(host + 'nuclear_data/options', function (res) {
-        //         // 遍历返回的数组，将每个名称添加到名称的下拉框中
-        //         for (let item of res) {
-        //             $('#name').append(`<option value="${item.name}">${item.name}</option>`);
-        //         }
-        //         // 触发名称的下拉框的change事件，以获取对应的位置
-        //         $('#name').trigger('change');
-        //     });
-        // });
-
-        // 在页面加载时发送get请求，获取所有的名称，并填充到名称的下拉框中
-        $(document).ready(function () {
-
-            setDefalutValue()
-
-            // 触发名称的下拉框的change事件，以获取对应的位置
-            $('#type').trigger('change');
-        });
-
-        // 绑定名称的下拉框的change事件，当选择某个名称时，发送post请求，获取对应的名称，并填充到名称的下拉框中
-        $('#type').on('change', function () {
-            // 获取选择的名称
-            let type = $(this).val();
-            // 发送post请求
-            $.post(host + 'nuclear_data/options/names', { type: type }, function (res) {
-                // 清空位置的下拉框
-                $('#name').empty();
-                // 遍历返回的数组，将每个位置添加到位置的下拉框中
-                for (let item of res) {
-                    $('#name').append(`<option value="${item.name}">${item.name}</option>`);
+            async function request(path, options) {
+                const response = await fetch(API_BASE + path, options)
+                if (!response.ok) {
+                    const text = await response.text().catch(() => '')
+                    throw new Error(text || `请求失败（HTTP ${response.status}）`)
                 }
-                // 触发名称的下拉框的change事件，以获取对应的位置
-                $('#name').trigger('change');
-            });
-        });
+                return response.json()
+            }
 
-        // 绑定名称的下拉框的change事件，当选择某个名称时，发送post请求，获取对应的位置，并填充到位置的下拉框中
-        $('#name').on('change', function () {
-            // 获取选择的名称
-            let type = $('#type').val();
-            let name = $(this).val();
-            // 发送post请求
-            $.post(host + 'nuclear_data/options/locations', { type: type, name: name }, function (res) {
-                // 清空位置的下拉框
-                $('#location').empty();
-                // 遍历返回的数组，将每个位置添加到位置的下拉框中
-                for (let item of res) {
-                    $('#location').append(`<option value="${item.location}">${item.location}</option>`);
+            function post(path, data) {
+                return request(path, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data),
+                })
+            }
+
+            function pad2(value) {
+                return String(value).padStart(2, '0')
+            }
+
+            function dateString(date) {
+                return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`
+            }
+
+            // 接口返回的 date 由 mysql2 转成 UTC 时间戳，展示时换回东八区日期
+            function displayDate(value) {
+                if (!value) return '—'
+                if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value
+                const date = new Date(value)
+                if (isNaN(date.getTime())) return value
+                return new Date(date.getTime() + 8 * 3600 * 1000).toISOString().slice(0, 10)
+            }
+
+            function setDefaultDate() {
+                el.date.value = dateString(new Date(Date.now() - 2 * 24 * 3600 * 1000))
+                el.date.max = dateString(new Date(Date.now() - 24 * 3600 * 1000))
+            }
+
+            function toast(message, kind) {
+                el.toast.textContent = message
+                el.toast.className = 'toast show' + (kind === 'error' ? ' error' : '')
+                clearTimeout(toastTimer)
+                toastTimer = setTimeout(() => {
+                    el.toast.className = 'toast'
+                }, 3200)
+            }
+
+            function fillSelect(select, values, keep) {
+                const first = select.options[0]
+                select.replaceChildren(first)
+                for (const value of values) {
+                    select.add(new Option(value, value))
                 }
-            });
-        });
+                select.value = values.includes(keep) ? keep : ''
+            }
 
-        $('#location').on('change', function () {
-            $('#submit-btn').trigger('click');
-        });
+            function namesFor(type) {
+                const names = new Set()
+                for (const item of optionsTree) {
+                    if (!type || item.type === type) names.add(item.name)
+                }
+                return [...names].sort(collator.compare)
+            }
 
-        $('#date').on('change', function () {
-            $('#submit-btn').trigger('click');
-        });
+            function locationsFor(type, name) {
+                const locations = new Set()
+                for (const item of optionsTree) {
+                    if (type && item.type !== type) continue
+                    if (name && item.name !== name) continue
+                    for (const location of item.locations) locations.add(location)
+                }
+                return [...locations].sort(collator.compare)
+            }
 
+            async function loadOptionsTree() {
+                try {
+                    optionsTree = await request('nuclear_data/options/tree')
+                } catch (error) {
+                    optionsTree = []
+                    toast('监测点选项加载失败', 'error')
+                }
+            }
 
-        function rtime(timeStr) {
-            let date = new Date(timeStr)
-            // return new Date(date.getTime() + 8 * 3600 * 1000).toISOString().replace('T', ' ').replace('Z', '')
-            return new Date(date.getTime() + 8 * 3600 * 1000).toISOString().substring(0, 10)
-        }
-
-        // 绑定表单提交事件
-        $('#form').on('submit', function (e) {
-            e.preventDefault(); // 阻止默认行为
-            // 获取表单数据
-            let data = $(this).serialize();
-            // 发送post请求
-            $.post(host + 'nuclear_data', data, function (res) {
-                // 清空结果区域
-                $('#result').empty();
-                // 判断是否有数据返回
-                if (res.length > 0) {
-                    // 遍历返回的数组，显示每条数据的信息
-                    for (let item of res) {
-                        $('#result').append(`<p>名称：${item.name}</p>`);
-                        $('#result').append(`<p>位置：${item.location}</p>`);
-                        $('#result').append(`<p>值：${item.value}</p>`);
-                        $('#result').append(`<p>日期：${rtime(item.date)} <span style="color: grey; font-size: small;">(${item.date})</span></p>`);
-                        $('#result').append(`<p>类型：${item.type}</p>`);
-                        $('#result').append(`<p>数据更新日期：${item.time || '暂无'}</p>`);
-                        $('#result').append(`<hr>`); // 分隔线
+            // 选择下级时反推名称/类型，选择上级时过滤下级
+            function syncSelects(source) {
+                if (source === 'name' && el.name.value) {
+                    const owner = optionsTree.find((item) => item.name === el.name.value)
+                    if (owner) el.type.value = owner.type
+                }
+                if (source === 'location' && el.location.value) {
+                    const owner = optionsTree.find((item) => item.locations.includes(el.location.value))
+                    if (owner && !el.name.value) {
+                        el.name.value = owner.name
+                        el.type.value = owner.type
                     }
-                } else {
-                    // 没有数据返回，显示提示信息
-                    $('#result').text('没有找到符合条件的数据');
                 }
-            });
-        });
+                fillSelect(el.name, namesFor(el.type.value), el.name.value)
+                fillSelect(el.location, locationsFor(el.type.value, el.name.value), el.location.value)
+            }
+
+            function showMessage(text, className) {
+                el.tbody.replaceChildren()
+                const tr = document.createElement('tr')
+                const td = document.createElement('td')
+                td.colSpan = 4
+                td.className = 'state-cell' + (className ? ` ${className}` : '')
+                td.textContent = text
+                tr.appendChild(td)
+                el.tbody.appendChild(tr)
+            }
+
+            function typeCell(type) {
+                const td = document.createElement('td')
+                const badge = document.createElement('span')
+                if (type === '0') {
+                    badge.className = 'badge env'
+                    badge.textContent = '环境'
+                    badge.title = '环境质量监测点'
+                } else if (type === '1') {
+                    badge.className = 'badge nuclear'
+                    badge.textContent = '核电'
+                    badge.title = '核电厂监测点'
+                } else {
+                    badge.className = 'badge station'
+                    badge.textContent = type || '—'
+                }
+                td.appendChild(badge)
+                return td
+            }
+
+            function valueCell(value) {
+                const td = document.createElement('td')
+                td.className = 'num'
+                const match = /^\s*([\d.]+)\s*(.*)$/.exec(value || '')
+                if (!match) {
+                    td.textContent = value || '—'
+                    return td
+                }
+                const num = document.createElement('b')
+                num.textContent = match[1]
+                td.appendChild(num)
+                if (match[2]) {
+                    const unit = document.createElement('span')
+                    unit.className = 'unit'
+                    unit.textContent = match[2]
+                    td.appendChild(unit)
+                }
+                return td
+            }
+
+            function renderRows(rows) {
+                el.tbody.replaceChildren()
+                const fragment = document.createDocumentFragment()
+                for (const row of rows) {
+                    const tr = document.createElement('tr')
+                    const dateCell = document.createElement('td')
+                    dateCell.className = 'nowrap'
+                    dateCell.textContent = displayDate(row.date)
+                    const timeCell = document.createElement('td')
+                    timeCell.className = 'nowrap muted'
+                    timeCell.textContent = row.time || '—'
+                    tr.append(dateCell, valueCell(row.value), typeCell(row.type), timeCell)
+                    fragment.appendChild(tr)
+                }
+                el.tbody.appendChild(fragment)
+            }
+
+            function setLoading(busy) {
+                el.submitBtn.disabled = busy
+                el.submitBtn.textContent = busy ? '查询中…' : '查询'
+            }
+
+            async function runQuery() {
+                if (!el.name.value || !el.location.value) {
+                    el.meta.textContent = '请选择名称和位置'
+                    showMessage('请选择名称和位置', 'empty')
+                    return
+                }
+                if (!el.date.value) {
+                    toast('请选择日期', 'error')
+                    return
+                }
+
+                const seq = ++requestSeq
+                setLoading(true)
+                el.meta.textContent = '查询中…'
+                showMessage('查询中…')
+
+                try {
+                    const rows = await post('nuclear_data', {
+                        type: el.type.value,
+                        name: el.name.value,
+                        location: el.location.value,
+                        date: el.date.value,
+                    })
+                    if (seq !== requestSeq) return
+
+                    el.meta.textContent = `${el.name.value} · ${el.location.value} · ${el.date.value} 及前 3 天 · 共 ${rows.length} 条`
+                    if (!rows.length) {
+                        showMessage('没有找到符合条件的数据', 'empty')
+                        return
+                    }
+                    renderRows(rows)
+                } catch (error) {
+                    if (seq !== requestSeq) return
+                    el.meta.textContent = '查询失败'
+                    showMessage(error.message || '查询失败', 'error')
+                } finally {
+                    if (seq === requestSeq) setLoading(false)
+                }
+            }
+
+            el.type.addEventListener('change', () => {
+                syncSelects('type')
+                runQuery()
+            })
+
+            el.name.addEventListener('change', () => {
+                syncSelects('name')
+                runQuery()
+            })
+
+            el.location.addEventListener('change', () => {
+                syncSelects('location')
+                runQuery()
+            })
+
+            el.date.addEventListener('change', runQuery)
+
+            el.form.addEventListener('submit', (event) => {
+                event.preventDefault()
+                runQuery()
+            })
+
+            async function init() {
+                setDefaultDate()
+                await loadOptionsTree()
+                syncSelects('type')
+                showMessage('选择名称和位置后查询', 'empty')
+            }
+
+            init()
+        })()
     </script>
 </body>
 
