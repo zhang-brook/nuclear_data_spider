@@ -1,0 +1,1284 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>辐射环境监测数据 · 多条件查询</title>
+    <style>
+        :root {
+            --bg: #f3f5f9;
+            --card: #fff;
+            --text: #1f2937;
+            --muted: #64748b;
+            --line: #e5e9f0;
+            --primary: #2563eb;
+            --primary-dark: #1d4ed8;
+            --radius: 10px;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+        }
+
+        .wrap {
+            width: 100%;
+            max-width: 1280px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        .topbar {
+            background: var(--card);
+            border-bottom: 1px solid var(--line);
+        }
+
+        .topbar-inner {
+            display: flex;
+            align-items: flex-end;
+            justify-content: space-between;
+            gap: 16px;
+            flex-wrap: wrap;
+            padding-top: 18px;
+            padding-bottom: 18px;
+        }
+
+        .brand h1 {
+            margin: 0;
+            font-size: 20px;
+            font-weight: 600;
+            letter-spacing: .2px;
+        }
+
+        .brand p {
+            margin: 4px 0 0;
+            color: var(--muted);
+            font-size: 12px;
+        }
+
+        .stats {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px 22px;
+        }
+
+        .stat {
+            min-width: 88px;
+        }
+
+        .stat b {
+            display: block;
+            font-size: 15px;
+            font-weight: 600;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .stat span {
+            display: block;
+            color: var(--muted);
+            font-size: 12px;
+        }
+
+        .card {
+            background: var(--card);
+            border: 1px solid var(--line);
+            border-radius: var(--radius);
+            box-shadow: 0 1px 2px rgba(15, 23, 42, .04);
+        }
+
+        main.wrap {
+            padding-top: 16px;
+            padding-bottom: 8px;
+        }
+
+        .filter-card {
+            padding: 18px;
+        }
+
+        .filter-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 14px 16px;
+        }
+
+        .field {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            font-size: 12px;
+            color: var(--muted);
+        }
+
+        .field select,
+        .field input {
+            width: 100%;
+            height: 34px;
+            padding: 0 10px;
+            border: 1px solid #d6dbe4;
+            border-radius: 6px;
+            background: #fff;
+            color: var(--text);
+            font: inherit;
+            font-size: 13px;
+            outline: none;
+        }
+
+        .field select:focus,
+        .field input:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, .12);
+        }
+
+        .field.span-2 {
+            grid-column: span 2;
+        }
+
+        .filter-foot {
+            display: flex;
+            align-items: flex-end;
+            justify-content: space-between;
+            gap: 16px;
+            flex-wrap: wrap;
+            margin-top: 16px;
+            padding-top: 14px;
+            border-top: 1px dashed var(--line);
+        }
+
+        .sort-controls {
+            display: flex;
+            gap: 14px;
+            flex-wrap: wrap;
+        }
+
+        .sort-controls label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            color: var(--muted);
+        }
+
+        .sort-controls select {
+            height: 32px;
+            padding: 0 8px;
+            border: 1px solid #d6dbe4;
+            border-radius: 6px;
+            background: #fff;
+            font: inherit;
+            font-size: 13px;
+        }
+
+        .actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn {
+            height: 34px;
+            padding: 0 16px;
+            border-radius: 6px;
+            border: 1px solid transparent;
+            font: inherit;
+            font-size: 13px;
+            cursor: pointer;
+        }
+
+        .btn:disabled {
+            opacity: .55;
+            cursor: not-allowed;
+        }
+
+        .btn.primary {
+            background: var(--primary);
+            color: #fff;
+        }
+
+        .btn.primary:hover:not(:disabled) {
+            background: var(--primary-dark);
+        }
+
+        .btn.ghost {
+            background: #fff;
+            border-color: #d6dbe4;
+            color: #334155;
+        }
+
+        .btn.ghost:hover:not(:disabled) {
+            border-color: #b9c2d0;
+            background: #f8fafc;
+        }
+
+        .btn.small {
+            height: 30px;
+            padding: 0 12px;
+            font-size: 12px;
+        }
+
+        .result-card {
+            margin-top: 16px;
+            padding: 18px;
+        }
+
+        .result-head {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .result-head h2 {
+            margin: 0;
+            font-size: 15px;
+            font-weight: 600;
+        }
+
+        .meta {
+            margin: 4px 0 0;
+            color: var(--muted);
+            font-size: 12px;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .table-wrap {
+            margin-top: 12px;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            overflow: auto;
+            max-height: 62vh;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        thead th {
+            position: sticky;
+            top: 0;
+            z-index: 1;
+            background: #f8fafc;
+            color: #475569;
+            font-size: 12px;
+            font-weight: 600;
+            text-align: left;
+            white-space: nowrap;
+            padding: 10px 12px;
+            border-bottom: 1px solid var(--line);
+        }
+
+        th.sortable {
+            cursor: pointer;
+            user-select: none;
+        }
+
+        th.sortable:hover {
+            color: var(--primary);
+        }
+
+        .sort-mark {
+            display: inline-block;
+            width: 12px;
+            color: var(--primary);
+        }
+
+        tbody td {
+            padding: 9px 12px;
+            border-bottom: 1px solid #f1f4f8;
+            vertical-align: top;
+        }
+
+        tbody tr:last-child td {
+            border-bottom: 0;
+        }
+
+        tbody tr:hover td {
+            background: #f8fafd;
+        }
+
+        td.num {
+            text-align: right;
+            white-space: nowrap;
+            font-variant-numeric: tabular-nums;
+        }
+
+        td.num b {
+            font-weight: 600;
+        }
+
+        td.num .unit {
+            margin-left: 2px;
+            color: var(--muted);
+            font-size: 12px;
+        }
+
+        td.nowrap {
+            white-space: nowrap;
+        }
+
+        .muted {
+            color: #94a3b8;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 1px 8px;
+            border-radius: 999px;
+            font-size: 12px;
+            line-height: 18px;
+            white-space: nowrap;
+        }
+
+        .badge.env {
+            background: #eef2ff;
+            color: #3730a3;
+        }
+
+        .badge.nuclear {
+            background: #fff7ed;
+            color: #9a3412;
+        }
+
+        .badge.summary {
+            background: #f5f3ff;
+            color: #6d28d9;
+        }
+
+        .badge.station {
+            background: #f1f5f9;
+            color: #475569;
+        }
+
+        .state-cell {
+            padding: 42px 12px;
+            text-align: center;
+            color: var(--muted);
+        }
+
+        .state-cell.error {
+            color: #b91c1c;
+        }
+
+        .pager {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 14px;
+        }
+
+        .page-btn {
+            min-width: 32px;
+            height: 30px;
+            padding: 0 10px;
+            border: 1px solid #d6dbe4;
+            border-radius: 6px;
+            background: #fff;
+            color: #334155;
+            font: inherit;
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+        .page-btn:hover:not(:disabled) {
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+
+        .page-btn.active {
+            background: var(--primary);
+            border-color: var(--primary);
+            color: #fff;
+        }
+
+        .page-btn:disabled {
+            opacity: .45;
+            cursor: not-allowed;
+        }
+
+        .pager .ellipsis {
+            padding: 0 2px;
+            color: #94a3b8;
+        }
+
+        .jump {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            margin-left: 6px;
+        }
+
+        .jump input {
+            width: 64px;
+            height: 30px;
+            padding: 0 8px;
+            border: 1px solid #d6dbe4;
+            border-radius: 6px;
+            font: inherit;
+            font-size: 12px;
+        }
+
+        .toast {
+            position: fixed;
+            left: 50%;
+            bottom: 28px;
+            z-index: 50;
+            max-width: 80vw;
+            padding: 10px 16px;
+            border-radius: 8px;
+            background: #1e293b;
+            color: #fff;
+            font-size: 13px;
+            box-shadow: 0 8px 24px rgba(15, 23, 42, .25);
+            opacity: 0;
+            pointer-events: none;
+            transform: translate(-50%, 12px);
+            transition: opacity .18s, transform .18s;
+        }
+
+        .toast.show {
+            opacity: 1;
+            transform: translate(-50%, 0);
+        }
+
+        .toast.error {
+            background: #b91c1c;
+        }
+
+        .footer {
+            margin-top: 8px;
+            margin-bottom: 40px;
+            color: #94a3b8;
+            font-size: 12px;
+        }
+
+        .footer a {
+            color: #64748b;
+        }
+
+        @media (max-width: 720px) {
+            .brand h1 {
+                font-size: 17px;
+            }
+
+            .field.span-2 {
+                grid-column: span 1;
+            }
+
+            .actions {
+                width: 100%;
+            }
+
+            .actions .btn {
+                flex: 1;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <header class="topbar">
+        <div class="wrap topbar-inner">
+            <div class="brand">
+                <h1>辐射环境监测数据</h1>
+                <p>国家核安全局公开数据 · 多条件历史记录查询</p>
+            </div>
+            <div class="stats" id="stats"></div>
+        </div>
+    </header>
+
+    <main class="wrap">
+        <form id="filter-form" class="card filter-card" autocomplete="off">
+            <div class="filter-grid">
+                <label class="field">监测点类型
+                    <select id="f-type">
+                        <option value="">全部类型</option>
+                        <option value="0">环境质量监测点</option>
+                        <option value="1">核电厂监测点</option>
+                    </select>
+                </label>
+                <label class="field">名称
+                    <select id="f-name">
+                        <option value="">全部名称</option>
+                    </select>
+                </label>
+                <label class="field">位置
+                    <select id="f-location">
+                        <option value="">全部位置</option>
+                    </select>
+                </label>
+                <label class="field">数据层级
+                    <select id="f-level">
+                        <option value="">全部层级</option>
+                        <option value="summary">省级汇总</option>
+                        <option value="station">站点明细</option>
+                    </select>
+                </label>
+                <label class="field">开始日期
+                    <input type="date" id="f-date-start">
+                </label>
+                <label class="field">结束日期
+                    <input type="date" id="f-date-end">
+                </label>
+                <label class="field">数值下限（nGy/h）
+                    <input type="number" id="f-value-min" step="any" placeholder="不限">
+                </label>
+                <label class="field">数值上限（nGy/h）
+                    <input type="number" id="f-value-max" step="any" placeholder="不限">
+                </label>
+                <label class="field span-2">关键词
+                    <input type="search" id="f-keyword" maxlength="100" placeholder="按名称或位置模糊匹配">
+                </label>
+            </div>
+            <div class="filter-foot">
+                <div class="sort-controls">
+                    <label>排序
+                        <select id="f-sort">
+                            <option value="date">日期</option>
+                            <option value="value">数值</option>
+                            <option value="name">名称</option>
+                            <option value="time">更新时间</option>
+                        </select>
+                    </label>
+                    <label>顺序
+                        <select id="f-order">
+                            <option value="desc">降序</option>
+                            <option value="asc">升序</option>
+                        </select>
+                    </label>
+                    <label>每页
+                        <select id="f-size">
+                            <option value="20">20 条</option>
+                            <option value="50">50 条</option>
+                            <option value="100">100 条</option>
+                            <option value="200">200 条</option>
+                        </select>
+                    </label>
+                </div>
+                <div class="actions">
+                    <button type="button" id="btn-reset" class="btn ghost">重置</button>
+                    <button type="submit" id="btn-query" class="btn primary">查询</button>
+                </div>
+            </div>
+        </form>
+
+        <section class="card result-card">
+            <div class="result-head">
+                <div>
+                    <h2>数据列表</h2>
+                    <p class="meta" id="result-meta">—</p>
+                </div>
+                <button type="button" id="btn-export" class="btn ghost small">导出 CSV（≤2000 条）</button>
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th class="sortable" data-sort="date">日期<span class="sort-mark"></span></th>
+                            <th>类型</th>
+                            <th class="sortable" data-sort="name">名称<span class="sort-mark"></span></th>
+                            <th>位置</th>
+                            <th class="sortable" data-sort="value">数值<span class="sort-mark"></span></th>
+                            <th>层级</th>
+                            <th class="sortable" data-sort="time">更新时间<span class="sort-mark"></span></th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbody"></tbody>
+                </table>
+            </div>
+            <div class="pager" id="pager"></div>
+        </section>
+    </main>
+
+    <footer class="wrap footer">
+        <p>数据来源：国家核安全局 · 辐射环境监测数据。本站仅保存历史监测值，不对数据真实性做保证，仅供学术研究使用。</p>
+        <p><a href="./index.html">← 返回基础查询</a></p>
+    </footer>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+    <script>
+        (function () {
+            'use strict'
+
+            const API_BASE = (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
+                ? 'http://localhost:35590/'
+                : '/api/'
+
+            const $ = (id) => document.getElementById(id)
+
+            const el = {
+                form: $('filter-form'),
+                type: $('f-type'),
+                name: $('f-name'),
+                location: $('f-location'),
+                level: $('f-level'),
+                dateStart: $('f-date-start'),
+                dateEnd: $('f-date-end'),
+                valueMin: $('f-value-min'),
+                valueMax: $('f-value-max'),
+                keyword: $('f-keyword'),
+                sort: $('f-sort'),
+                order: $('f-order'),
+                size: $('f-size'),
+                queryBtn: $('btn-query'),
+                resetBtn: $('btn-reset'),
+                exportBtn: $('btn-export'),
+                stats: $('stats'),
+                meta: $('result-meta'),
+                tbody: $('tbody'),
+                pager: $('pager'),
+                toast: $('toast'),
+            }
+
+            const state = {
+                page: 1,
+                pageSize: 20,
+                sortBy: 'date',
+                sortOrder: 'desc',
+            }
+
+            let requestSeq = 0
+            let toastTimer = null
+
+            async function request(path, options) {
+                const response = await fetch(API_BASE + path, options)
+                if (!response.ok) {
+                    const text = await response.text().catch(() => '')
+                    throw new Error(text || `请求失败（HTTP ${response.status}）`)
+                }
+                return response.json()
+            }
+
+            function post(path, data) {
+                return request(path, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data),
+                })
+            }
+
+            const fmt = (value) => Number(value || 0).toLocaleString('zh-CN')
+
+            function pad2(value) {
+                return String(value).padStart(2, '0')
+            }
+
+            function dateString(date) {
+                return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`
+            }
+
+            function defaultDateRange() {
+                const end = new Date()
+                const start = new Date(end.getTime() - 14 * 24 * 3600 * 1000)
+                return { start: dateString(start), end: dateString(end) }
+            }
+
+            function stat(label, value) {
+                const box = document.createElement('div')
+                box.className = 'stat'
+                const strong = document.createElement('b')
+                strong.textContent = value
+                const span = document.createElement('span')
+                span.textContent = label
+                box.append(strong, span)
+                return box
+            }
+
+            async function loadStats() {
+                try {
+                    const data = await request('nuclear_data/stats')
+                    const counts = {}
+                    for (const item of data.types || []) {
+                        counts[item.type] = Number(item.cnt)
+                    }
+                    el.stats.replaceChildren(
+                        stat('总记录', fmt(data.total)),
+                        stat('数据日期', `${data.minDate || '—'} ~ ${data.maxDate || '—'}`),
+                        stat('最近更新', data.lastTime || '—'),
+                        stat('环境 / 核电', `${fmt(counts['0'] || 0)} / ${fmt(counts['1'] || 0)}`)
+                    )
+                } catch (error) {
+                    el.stats.replaceChildren(stat('数据概览', '加载失败'))
+                }
+            }
+
+            let optionsTree = []
+            const collator = new Intl.Collator('zh-Hans-CN')
+
+            function fillSelect(select, values, keep) {
+                const first = select.options[0]
+                select.replaceChildren(first)
+                for (const value of values) {
+                    select.add(new Option(value, value))
+                }
+                select.value = values.includes(keep) ? keep : ''
+            }
+
+            function namesFor(type) {
+                const names = new Set()
+                for (const item of optionsTree) {
+                    if (!type || item.type === type) names.add(item.name)
+                }
+                return [...names].sort(collator.compare)
+            }
+
+            function locationsFor(type, name) {
+                const locations = new Set()
+                for (const item of optionsTree) {
+                    if (type && item.type !== type) continue
+                    if (name && item.name !== name) continue
+                    for (const location of item.locations) locations.add(location)
+                }
+                return [...locations].sort(collator.compare)
+            }
+
+            async function loadOptionsTree() {
+                try {
+                    optionsTree = await request('nuclear_data/options/tree')
+                } catch (error) {
+                    optionsTree = []
+                    toast('筛选选项加载失败', 'error')
+                }
+            }
+
+            // 选择下级时反推名称/类型，选择上级时过滤下级
+            function syncSelects(source) {
+                if (source === 'name' && el.name.value) {
+                    const owner = optionsTree.find((item) => item.name === el.name.value)
+                    if (owner) el.type.value = owner.type
+                }
+                if (source === 'location' && el.location.value) {
+                    const owner = optionsTree.find((item) => item.locations.includes(el.location.value))
+                    if (owner && !el.name.value) {
+                        el.name.value = owner.name
+                        el.type.value = owner.type
+                    }
+                }
+                fillSelect(el.name, namesFor(el.type.value), el.name.value)
+                fillSelect(el.location, locationsFor(el.type.value, el.name.value), el.location.value)
+            }
+
+            function collectFilters() {
+                return {
+                    type: el.type.value,
+                    name: el.name.value,
+                    location: el.location.value,
+                    level: el.level.value,
+                    dateStart: el.dateStart.value,
+                    dateEnd: el.dateEnd.value,
+                    valueMin: el.valueMin.value.trim(),
+                    valueMax: el.valueMax.value.trim(),
+                    keyword: el.keyword.value.trim(),
+                }
+            }
+
+            function validateFilters(filters) {
+                if (filters.dateStart && filters.dateEnd && filters.dateStart > filters.dateEnd) {
+                    return '开始日期不能晚于结束日期'
+                }
+                const min = filters.valueMin === '' ? null : Number(filters.valueMin)
+                const max = filters.valueMax === '' ? null : Number(filters.valueMax)
+                if (min !== null && !Number.isFinite(min)) return '数值下限格式不正确'
+                if (max !== null && !Number.isFinite(max)) return '数值上限格式不正确'
+                if (min !== null && max !== null && min > max) return '数值下限不能大于上限'
+                return ''
+            }
+
+            function oneOf(value, allowed, fallback) {
+                return allowed.includes(value) ? value : fallback
+            }
+
+            function syncUrl(mode) {
+                const filters = collectFilters()
+                const params = new URLSearchParams()
+                const pairs = [
+                    ['type', filters.type],
+                    ['name', filters.name],
+                    ['location', filters.location],
+                    ['level', filters.level],
+                    ['ds', filters.dateStart],
+                    ['de', filters.dateEnd],
+                    ['vmin', filters.valueMin],
+                    ['vmax', filters.valueMax],
+                    ['kw', filters.keyword],
+                    ['sort', state.sortBy],
+                    ['order', state.sortOrder],
+                    ['size', String(state.pageSize)],
+                    ['page', String(state.page)],
+                ]
+                for (const [key, value] of pairs) {
+                    if (value) params.set(key, value)
+                }
+                const url = `${location.pathname}?${params.toString()}`
+                if (url === location.pathname + location.search) return
+                history[mode === 'push' ? 'pushState' : 'replaceState'](null, '', url)
+            }
+
+            async function restoreFromUrl() {
+                const params = new URLSearchParams(location.search)
+                el.type.value = oneOf(params.get('type'), ['0', '1'], '')
+                el.level.value = oneOf(params.get('level'), ['summary', 'station'], '')
+                const range = defaultDateRange()
+                el.dateStart.value = params.get('ds') || range.start
+                el.dateEnd.value = params.get('de') || range.end
+                el.valueMin.value = params.get('vmin') || ''
+                el.valueMax.value = params.get('vmax') || ''
+                el.keyword.value = params.get('kw') || ''
+                state.sortBy = oneOf(params.get('sort'), ['date', 'value', 'name', 'time'], 'date')
+                state.sortOrder = oneOf(params.get('order'), ['asc', 'desc'], 'desc')
+                state.pageSize = oneOf(Number(params.get('size')), [20, 50, 100, 200], 20)
+                state.page = Math.max(1, parseInt(params.get('page'), 10) || 1)
+                el.sort.value = state.sortBy
+                el.order.value = state.sortOrder
+                el.size.value = String(state.pageSize)
+                const nameParam = params.get('name') || ''
+                const locationParam = params.get('location') || ''
+                const owner = optionsTree.find((item) => item.name === nameParam)
+                if (owner && !el.type.value) el.type.value = owner.type
+                fillSelect(el.name, namesFor(el.type.value), nameParam)
+                fillSelect(el.location, locationsFor(el.type.value, el.name.value), locationParam)
+                syncUrl('replace')
+            }
+
+            function showMessage(text, kind) {
+                el.tbody.replaceChildren()
+                const tr = document.createElement('tr')
+                const td = document.createElement('td')
+                td.colSpan = 7
+                td.className = 'state-cell' + (kind ? ` ${kind}` : '')
+                td.textContent = text
+                tr.appendChild(td)
+                el.tbody.appendChild(tr)
+            }
+
+            function textCell(text, className) {
+                const td = document.createElement('td')
+                if (className) td.className = className
+                td.textContent = text
+                return td
+            }
+
+            function typeCell(type) {
+                const td = document.createElement('td')
+                const badge = document.createElement('span')
+                if (type === '0') {
+                    badge.className = 'badge env'
+                    badge.textContent = '环境'
+                    badge.title = '环境质量监测点'
+                } else if (type === '1') {
+                    badge.className = 'badge nuclear'
+                    badge.textContent = '核电'
+                    badge.title = '核电厂监测点'
+                } else {
+                    badge.className = 'badge station'
+                    badge.textContent = type || '—'
+                }
+                td.appendChild(badge)
+                return td
+            }
+
+            function levelCell(row) {
+                const td = document.createElement('td')
+                const badge = document.createElement('span')
+                const summary = row.parent_id === null || row.parent_id === undefined
+                badge.className = `badge ${summary ? 'summary' : 'station'}`
+                badge.textContent = summary ? '汇总' : '站点'
+                badge.title = summary ? '省级汇总：该省省会站的最新值' : '站点明细：监测点位的最新值'
+                td.appendChild(badge)
+                return td
+            }
+
+            function valueCell(value) {
+                const td = document.createElement('td')
+                td.className = 'num'
+                const match = /^\s*([\d.]+)\s*(.*)$/.exec(value || '')
+                if (!match) {
+                    td.textContent = value || '—'
+                    return td
+                }
+                const num = document.createElement('b')
+                num.textContent = match[1]
+                td.appendChild(num)
+                if (match[2]) {
+                    const unit = document.createElement('span')
+                    unit.className = 'unit'
+                    unit.textContent = match[2]
+                    td.appendChild(unit)
+                }
+                return td
+            }
+
+            function renderRows(rows) {
+                el.tbody.replaceChildren()
+                const fragment = document.createDocumentFragment()
+                for (const row of rows) {
+                    const tr = document.createElement('tr')
+                    tr.appendChild(textCell(row.date || '—', 'nowrap'))
+                    tr.appendChild(typeCell(row.type))
+                    tr.appendChild(textCell(row.name || '—'))
+                    tr.appendChild(textCell(row.location || '—'))
+                    tr.appendChild(valueCell(row.value))
+                    tr.appendChild(levelCell(row))
+                    tr.appendChild(textCell(row.time || '—', 'nowrap muted'))
+                    fragment.appendChild(tr)
+                }
+                el.tbody.appendChild(fragment)
+            }
+
+            function updateSortMarks() {
+                for (const th of document.querySelectorAll('th[data-sort]')) {
+                    const mark = th.querySelector('.sort-mark')
+                    mark.textContent = th.dataset.sort === state.sortBy
+                        ? (state.sortOrder === 'asc' ? '↑' : '↓')
+                        : ''
+                }
+            }
+
+            function renderMeta(result) {
+                const maxPage = Math.max(1, Math.ceil(result.total / result.pageSize))
+                el.meta.textContent = `共 ${fmt(result.total)} 条 · 第 ${fmt(result.page)} / ${fmt(maxPage)} 页`
+            }
+
+            function pageWindow(current, max) {
+                if (max <= 7) {
+                    return Array.from({ length: max }, (_, index) => index + 1)
+                }
+                const pages = new Set([1, max, current])
+                for (let offset = 1; offset <= 2; offset++) {
+                    if (current - offset > 1) pages.add(current - offset)
+                    if (current + offset < max) pages.add(current + offset)
+                }
+                const sorted = Array.from(pages).sort((a, b) => a - b)
+                const output = []
+                for (let index = 0; index < sorted.length; index++) {
+                    if (index > 0 && sorted[index] - sorted[index - 1] > 1) output.push('…')
+                    output.push(sorted[index])
+                }
+                return output
+            }
+
+            function pageButton(label, page, disabled, active) {
+                const button = document.createElement('button')
+                button.type = 'button'
+                button.className = 'page-btn' + (active ? ' active' : '')
+                button.textContent = label
+                button.dataset.page = String(page)
+                button.disabled = Boolean(disabled)
+                return button
+            }
+
+            function renderPager(result) {
+                el.pager.replaceChildren()
+                if (result.total === 0) return
+
+                const maxPage = Math.max(1, Math.ceil(result.total / result.pageSize))
+                const current = result.page
+                el.pager.appendChild(pageButton('« 首页', 1, current === 1))
+                el.pager.appendChild(pageButton('‹ 上一页', current - 1, current === 1))
+                for (const item of pageWindow(current, maxPage)) {
+                    if (item === '…') {
+                        const span = document.createElement('span')
+                        span.className = 'ellipsis'
+                        span.textContent = '…'
+                        el.pager.appendChild(span)
+                    } else {
+                        el.pager.appendChild(pageButton(String(item), item, false, item === current))
+                    }
+                }
+                el.pager.appendChild(pageButton('下一页 ›', current + 1, current === maxPage))
+                el.pager.appendChild(pageButton('末页 »', maxPage, current === maxPage))
+
+                const jump = document.createElement('span')
+                jump.className = 'jump'
+                const input = document.createElement('input')
+                input.type = 'number'
+                input.id = 'page-jump'
+                input.min = '1'
+                input.max = String(maxPage)
+                input.placeholder = String(current)
+                const go = document.createElement('button')
+                go.type = 'button'
+                go.id = 'page-go'
+                go.className = 'page-btn'
+                go.textContent = '跳转'
+                jump.append(input, go)
+                el.pager.appendChild(jump)
+            }
+
+            function setLoading(busy) {
+                el.queryBtn.disabled = busy
+                el.queryBtn.textContent = busy ? '查询中…' : '查询'
+                el.exportBtn.disabled = busy
+            }
+
+            async function runQuery(options = {}) {
+                const filters = collectFilters()
+                const problem = validateFilters(filters)
+                if (problem) {
+                    toast(problem, 'error')
+                    return
+                }
+
+                state.sortBy = el.sort.value || 'date'
+                state.sortOrder = el.order.value === 'asc' ? 'asc' : 'desc'
+                state.pageSize = Number(el.size.value) || 20
+                if (options.resetPage) state.page = 1
+                if (Number.isFinite(options.page)) state.page = options.page
+
+                const seq = ++requestSeq
+                setLoading(true)
+                showMessage('查询中…', 'loading')
+                el.meta.textContent = '—'
+                el.pager.replaceChildren()
+
+                if (options.push) syncUrl('push')
+                else if (options.replace) syncUrl('replace')
+
+                try {
+                    const result = await post('nuclear_data/list', {
+                        ...filters,
+                        page: state.page,
+                        pageSize: state.pageSize,
+                        sortBy: state.sortBy,
+                        sortOrder: state.sortOrder,
+                    })
+                    if (seq !== requestSeq) return
+
+                    if (result.page !== state.page) {
+                        state.page = result.page
+                        syncUrl('replace')
+                    }
+
+                    renderRows(result.rows)
+                    if (!result.rows.length) showMessage('没有符合条件的数据', 'empty')
+                    updateSortMarks()
+                    renderMeta(result)
+                    renderPager(result)
+                } catch (error) {
+                    if (seq !== requestSeq) return
+                    showMessage(error.message || '查询失败', 'error')
+                    el.meta.textContent = '—'
+                } finally {
+                    if (seq === requestSeq) setLoading(false)
+                }
+            }
+
+            function typeFullText(type) {
+                if (type === '0') return '环境质量监测点'
+                if (type === '1') return '核电厂监测点'
+                return type || ''
+            }
+
+            function levelFullText(row) {
+                return row.parent_id === null || row.parent_id === undefined ? '省级汇总' : '站点明细'
+            }
+
+            function csvCell(value) {
+                const text = value === null || value === undefined ? '' : String(value)
+                return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text
+            }
+
+            function buildCsv(rows) {
+                const lines = [['日期', '类型', '名称', '位置', '数值', '层级', '数据项', '更新时间', '记录ID']]
+                for (const row of rows) {
+                    lines.push([
+                        row.date || '',
+                        typeFullText(row.type),
+                        row.name || '',
+                        row.location || '',
+                        row.value || '',
+                        levelFullText(row),
+                        row.itemname || '',
+                        row.time || '',
+                        row.nuclear_data_id,
+                    ])
+                }
+                return '\ufeff' + lines.map((line) => line.map(csvCell).join(',')).join('\r\n')
+            }
+
+            function csvFileName() {
+                const now = new Date()
+                const pad = (value) => String(value).padStart(2, '0')
+                return `辐射监测数据_${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}.csv`
+            }
+
+            function downloadCsv(filename, content) {
+                const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' })
+                const url = URL.createObjectURL(blob)
+                const link = document.createElement('a')
+                link.href = url
+                link.download = filename
+                document.body.appendChild(link)
+                link.click()
+                link.remove()
+                setTimeout(() => URL.revokeObjectURL(url), 1000)
+            }
+
+            async function exportCsv() {
+                const filters = collectFilters()
+                const problem = validateFilters(filters)
+                if (problem) {
+                    toast(problem, 'error')
+                    return
+                }
+
+                const limit = 2000
+                const step = 200
+                const originalText = el.exportBtn.textContent
+                el.exportBtn.disabled = true
+                el.exportBtn.textContent = '导出中…'
+
+                try {
+                    const rows = []
+                    let total = 0
+                    let page = 1
+                    while (rows.length < limit) {
+                        const result = await post('nuclear_data/list', {
+                            ...filters,
+                            page,
+                            pageSize: Math.min(step, limit - rows.length),
+                            sortBy: state.sortBy,
+                            sortOrder: state.sortOrder,
+                        })
+                        total = result.total
+                        rows.push(...result.rows)
+                        if (!result.rows.length || rows.length >= total) break
+                        page += 1
+                    }
+                    if (!rows.length) {
+                        toast('当前条件没有可导出的数据')
+                        return
+                    }
+                    downloadCsv(csvFileName(), buildCsv(rows))
+                    toast(total > rows.length
+                        ? `已导出前 ${rows.length} 条（符合条件共 ${fmt(total)} 条）`
+                        : `已导出 ${rows.length} 条`)
+                } catch (error) {
+                    toast(error.message || '导出失败', 'error')
+                } finally {
+                    el.exportBtn.disabled = false
+                    el.exportBtn.textContent = originalText
+                }
+            }
+
+            function toast(message, kind) {
+                el.toast.textContent = message
+                el.toast.className = 'toast show' + (kind === 'error' ? ' error' : '')
+                clearTimeout(toastTimer)
+                toastTimer = setTimeout(() => {
+                    el.toast.className = 'toast'
+                }, 3200)
+            }
+
+            function resetFilters() {
+                el.form.reset()
+                el.type.value = ''
+                el.level.value = ''
+                el.sort.value = 'date'
+                el.order.value = 'desc'
+                el.size.value = '20'
+                const range = defaultDateRange()
+                el.dateStart.value = range.start
+                el.dateEnd.value = range.end
+                state.page = 1
+                state.pageSize = 20
+                state.sortBy = 'date'
+                state.sortOrder = 'desc'
+                syncSelects('type')
+                runQuery({ resetPage: true, push: true })
+            }
+
+            el.type.addEventListener('change', () => syncSelects('type'))
+
+            el.name.addEventListener('change', () => syncSelects('name'))
+
+            el.location.addEventListener('change', () => syncSelects('location'))
+
+            el.form.addEventListener('submit', (event) => {
+                event.preventDefault()
+                runQuery({ resetPage: true, push: true })
+            })
+
+            el.sort.addEventListener('change', () => runQuery({ resetPage: true, push: true }))
+            el.order.addEventListener('change', () => runQuery({ resetPage: true, push: true }))
+            el.size.addEventListener('change', () => runQuery({ resetPage: true, push: true }))
+
+            el.resetBtn.addEventListener('click', resetFilters)
+            el.exportBtn.addEventListener('click', exportCsv)
+
+            for (const th of document.querySelectorAll('th[data-sort]')) {
+                th.addEventListener('click', () => {
+                    const key = th.dataset.sort
+                    if (state.sortBy === key) {
+                        state.sortOrder = state.sortOrder === 'asc' ? 'desc' : 'asc'
+                    } else {
+                        state.sortBy = key
+                        state.sortOrder = key === 'date' ? 'desc' : 'asc'
+                    }
+                    el.sort.value = state.sortBy
+                    el.order.value = state.sortOrder
+                    runQuery({ resetPage: true, push: true })
+                })
+            }
+
+            el.pager.addEventListener('click', (event) => {
+                if (event.target.closest('#page-go')) {
+                    const input = el.pager.querySelector('#page-jump')
+                    const maxPage = Number(input.max) || 1
+                    let page = parseInt(input.value, 10)
+                    if (!Number.isFinite(page)) {
+                        toast('请输入要跳转的页码', 'error')
+                        return
+                    }
+                    page = Math.min(Math.max(page, 1), maxPage)
+                    if (page !== state.page) runQuery({ page, push: true })
+                    return
+                }
+                const button = event.target.closest('button[data-page]')
+                if (!button || button.disabled) return
+                const page = Number(button.dataset.page)
+                if (Number.isFinite(page) && page !== state.page) {
+                    runQuery({ page, push: true })
+                }
+            })
+
+            el.pager.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter' && event.target.id === 'page-jump') {
+                    event.preventDefault()
+                    const go = el.pager.querySelector('#page-go')
+                    if (go) go.click()
+                }
+            })
+
+            window.addEventListener('popstate', async () => {
+                await restoreFromUrl()
+                await runQuery({})
+            })
+
+            async function init() {
+                loadStats()
+                await loadOptionsTree()
+                await restoreFromUrl()
+                await runQuery({})
+            }
+
+            init()
+        })()
+    </script>
+</body>
+
+</html>
